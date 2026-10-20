@@ -8,6 +8,7 @@ import path from 'node:path';
 import multer from 'multer';
 import AdmZip from 'adm-zip';
 import { CloneJob } from './src/cloner.js';
+import { AIJob } from './src/aijob.js';
 import { getSettings, getStats, updateSettings, recordClone } from './src/settings.js';
 import { loadPuppeteer } from './src/browser.js';
 
@@ -242,6 +243,78 @@ function extractCode(text) {
   return (m ? m[1] : text).trim();
 }
 
+// One chat call to the configured OpenAI-compatible endpoint. Returns the message text.
+async function callAi(system, user) {
+  const s = getSettings();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 120000);
+  try {
+    const r = await fetch(chatUrl(s.aiBaseUrl), {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + s.aiApiKey },
+      body: JSON.stringify({ model: s.aiModel, temperature: 0.2, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error?.message || `HTTP ${r.status}`);
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('empty AI response');
+    return content;
+  } finally { clearTimeout(t); }
+}
+
+// ---- whole-project AI jobs ----
+const aiJobs = new Map();
+const uploadProject = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024, files: 2 } })
+  .fields([{ name: 'project', maxCount: 1 }, { name: 'backend', maxCount: 1 }, { name: 'frontend', maxCount: 1 }]);
+
+setInterval(() => {
+  for (const [id, job] of aiJobs) {
+    if (Date.now() - job.createdAt > 60 * 60000 && !['running', 'zipping'].includes(job.status)) {
+      fs.rm(job.zipPath, { force: true }, () => {});
+      aiJobs.delete(id);
+    }
+  }
+}, 120000).unref();
+
+app.post('/api/ai-project', (req, res) => {
+  const s = getSettings();
+  if (!s.allowAiMerge || !s.aiApiKey) return res.status(403).json({ error: 'AI is not enabled.' });
+  if (s.aiMergeAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can use AI.' });
+  uploadProject(req, res, err => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'ZIP is too large.' : 'Upload failed.' });
+    const mode = req.body?.mode === 'merge' ? 'merge' : 'edit';
+    const command = String(req.body?.command || '');
+    const f = req.files || {};
+    const opts = { command, maxFiles: s.aiMaxFiles, maxFileBytes: 80000 };
+    if (mode === 'edit') {
+      if (!f.project?.[0]) return res.status(400).json({ error: 'Upload the project ZIP.' });
+      if (!command.trim()) return res.status(400).json({ error: 'Type the change you want applied.' });
+      opts.projectBuf = f.project[0].buffer;
+    } else {
+      if (!f.backend?.[0] || !f.frontend?.[0]) return res.status(400).json({ error: 'Upload both the backend ZIP and the frontend/design ZIP.' });
+      opts.backendBuf = f.backend[0].buffer;
+      opts.frontendBuf = f.frontend[0].buffer;
+    }
+    const id = crypto.randomBytes(10).toString('hex');
+    const job = new AIJob(id, mode, opts, WORK, callAi);
+    aiJobs.set(id, job);
+    job.run();
+    res.json({ id });
+  });
+});
+
+app.get('/api/ai-project/:id', (req, res) => {
+  const job = aiJobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Job not found or expired.' });
+  res.json(job.toJSON());
+});
+
+app.get('/api/ai-project/:id/download', (req, res) => {
+  const job = aiJobs.get(req.params.id);
+  if (!job || job.status !== 'done' || !fs.existsSync(job.zipPath)) return res.status(404).send('Not ready or expired.');
+  res.download(job.zipPath, `ai-${job.mode}-project.zip`);
+});
+
 app.post('/api/ai-merge', async (req, res) => {
   const s = getSettings();
   if (!s.allowAiMerge || !s.aiApiKey) return res.status(403).json({ error: 'AI merge is not enabled.' });
@@ -254,6 +327,38 @@ app.post('/api/ai-merge', async (req, res) => {
 
   const sys = 'You are a senior web developer. You merge a new front-end design into an existing server-side template, keeping ALL of the template\'s dynamic code intact — its variables, loops, conditionals, includes, CSRF tokens, form actions and server tags (e.g. {{ }}, {% %}, <?php ?>, <%= %>, @if, ${ }). Apply the new design\'s HTML structure and CSS/classes, but wire every dynamic value from the original into the right place in the new markup. Do not invent new backend variables. Output ONLY the final merged file, inside a single code block, with no explanation.';
   const user = `EXISTING BACKEND TEMPLATE (keep all dynamic code working):\n\`\`\`\n${template}\n\`\`\`\n\nNEW FRONT-END DESIGN (use this look/structure):\n\`\`\`\n${design}\n\`\`\`\n\n${instruction ? 'EXTRA INSTRUCTION: ' + instruction + '\n\n' : ''}Return the merged template file only.`;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 120000);
+  try {
+    const r = await fetch(chatUrl(s.aiBaseUrl), {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + s.aiApiKey },
+      body: JSON.stringify({ model: s.aiModel, temperature: 0.2, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(502).json({ error: 'AI error: ' + (data.error?.message || `HTTP ${r.status}`) });
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return res.status(502).json({ error: 'AI returned no result.' });
+    res.json({ merged: extractCode(content), usage: data.usage || null });
+  } catch (e) {
+    res.status(502).json({ error: e.name === 'AbortError' ? 'AI request timed out.' : 'Could not reach the AI service.' });
+  } finally { clearTimeout(t); }
+});
+
+// AI edit: change one file by a plain-language command (keeps the rest intact).
+app.post('/api/ai-edit', async (req, res) => {
+  const s = getSettings();
+  if (!s.allowAiMerge || !s.aiApiKey) return res.status(403).json({ error: 'AI is not enabled.' });
+  if (s.aiMergeAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can use AI.' });
+  const code = String(req.body?.code || '');
+  const command = String(req.body?.command || '').slice(0, 2000);
+  if (!code.trim()) return res.status(400).json({ error: 'Paste or pick a file to edit.' });
+  if (!command.trim()) return res.status(400).json({ error: 'Type what you want to change.' });
+  if (code.length > 80000) return res.status(400).json({ error: 'File is too large — edit one page at a time (max ~80 KB).' });
+
+  const sys = 'You are a senior web developer. Apply ONLY the change the user asks for to the given file. Keep everything else exactly as it is, including all dynamic/server code (variables, loops, conditionals, includes, form actions, server tags like {{ }}, {% %}, <?php ?>, <%= %>, ${ }). Do not refactor or remove anything unrelated to the request. Output ONLY the full updated file inside a single code block, with no explanation.';
+  const user = `FILE:\n\`\`\`\n${code}\n\`\`\`\n\nCHANGE REQUESTED: ${command}\n\nReturn the full updated file only.`;
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 120000);

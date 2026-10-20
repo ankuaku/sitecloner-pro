@@ -29,6 +29,7 @@ export const DEFAULTS = {
   aiBaseUrl: 'https://api.deepseek.com',  // any OpenAI-compatible endpoint (DeepSeek, OpenRouter, self-hosted)
   aiModel: 'deepseek-chat',   // model name at that endpoint
   aiApiKey: '',               // secret API key (kept server-side, never sent to the browser)
+  aiMaxFiles: 60,             // max files the AI will process in one whole-project job (cost guard)
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

@@ -91,55 +91,64 @@
   };
   bindZip();
 
-  // AI merge — ZIP file pickers (parsed in the browser with JSZip)
-  const TEXT_EXT = /\.(html?|php|phtml|blade\.php|ejs|twig|vue|jsx|tsx|svelte|liquid|hbs|handlebars|mustache|erb|aspx|cshtml|astro|htm|css|js|ts|txt)$/i;
-  async function fillFromZip(fileInput, pick, targetId) {
-    const f = fileInput.files[0];
-    if (!f || typeof JSZip === 'undefined') return;
-    pick.style.display = 'none'; pick.innerHTML = '';
-    try {
-      const zip = await JSZip.loadAsync(f);
-      const files = [];
-      zip.forEach((p, e) => { if (!e.dir && TEXT_EXT.test(p) && !/(^|\/)(__MACOSX|node_modules|\.git)\//.test(p)) files.push(p); });
-      files.sort((a, b) => a.localeCompare(b));
-      if (!files.length) { $('aiAlert').textContent = 'No editable text/template files found in that ZIP.'; $('aiAlert').classList.add('show'); return; }
-      pick.add(new Option('— pick a file —', ''));
-      files.forEach(p => pick.add(new Option(p.length > 60 ? '…' + p.slice(-58) : p, p)));
-      pick.style.display = '';
-      pick._zip = zip;
-      pick.onchange = async () => {
-        if (!pick.value) return;
-        try {
-          const txt = await pick._zip.file(pick.value).async('string');
-          if (txt.length > 80000) { $('aiAlert').textContent = 'That file is larger than ~80 KB — pick a smaller page.'; $('aiAlert').classList.add('show'); }
-          $(targetId).value = txt;
-        } catch { $('aiAlert').textContent = 'Could not read that file from the ZIP.'; $('aiAlert').classList.add('show'); }
-      };
-    } catch { $('aiAlert').textContent = 'Could not open that ZIP.'; $('aiAlert').classList.add('show'); }
+  // AI — whole project (edit by command, or merge a design ZIP into a backend ZIP)
+  let aiMode = 'edit', aiPoll = null;
+  function setAiMode(m) {
+    aiMode = m;
+    $('editInputs').style.display = m === 'edit' ? '' : 'none';
+    $('mergeInputs').style.display = m === 'merge' ? '' : 'none';
+    $('tabEdit').style.background = m === 'edit' ? 'var(--primary)' : '';
+    $('tabEdit').style.color = m === 'edit' ? '#fff' : '';
+    $('tabMerge').style.background = m === 'merge' ? 'var(--primary)' : '';
+    $('tabMerge').style.color = m === 'merge' ? '#fff' : '';
   }
-  $('aiBackendZip') && ($('aiBackendZip').onchange = () => fillFromZip($('aiBackendZip'), $('aiBackendPick'), 'aiTemplate'));
-  $('aiFrontZip') && ($('aiFrontZip').onchange = () => fillFromZip($('aiFrontZip'), $('aiFrontPick'), 'aiDesign'));
+  $('tabEdit') && ($('tabEdit').onclick = () => setAiMode('edit'));
+  $('tabMerge') && ($('tabMerge').onclick = () => setAiMode('merge'));
+  if ($('aiBox')) setAiMode('edit');
 
-  // AI merge
   $('aiGo') && ($('aiGo').onclick = async () => {
-    const template = $('aiTemplate').value, design = $('aiDesign').value;
-    $('aiAlert').classList.remove('show'); $('aiResultWrap').style.display = 'none';
-    if (!template.trim() || !design.trim()) { $('aiAlert').textContent = 'Paste both the template and the new design.'; $('aiAlert').classList.add('show'); return; }
-    $('aiGo').disabled = true; $('aiGo').textContent = 'Merging…';
+    $('aiAlert').classList.remove('show');
+    const fd = new FormData();
+    fd.append('mode', aiMode);
+    if (aiMode === 'edit') {
+      const zip = $('aiProjectZip').files[0];
+      if (!zip) return aiErr('Upload your project ZIP.');
+      if (!$('aiCommand').value.trim()) return aiErr('Type the change you want applied.');
+      fd.append('project', zip); fd.append('command', $('aiCommand').value);
+    } else {
+      const b = $('aiBackendZip').files[0], f = $('aiFrontZip').files[0];
+      if (!b || !f) return aiErr('Upload both the backend ZIP and the frontend/design ZIP.');
+      fd.append('backend', b); fd.append('frontend', f); fd.append('command', $('aiInstruction').value);
+    }
+    $('aiGo').disabled = true; $('aiGo').textContent = 'Processing…';
+    $('aiStatus').classList.add('show'); $('aiResult2').classList.remove('show');
+    $('aiBar').classList.add('indet'); $('aiLog').textContent = 'Uploading…';
     try {
-      const r = await fetch('/api/ai-merge', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ template, design, instruction: $('aiInstruction').value }) });
+      const r = await fetch('/api/ai-project', { method: 'POST', body: fd });
       const d = await r.json();
-      if (!r.ok) { $('aiAlert').textContent = d.error || 'Merge failed.'; $('aiAlert').classList.add('show'); }
-      else { $('aiResultWrap').style.display = ''; $('aiResult').value = d.merged; }
-    } catch { $('aiAlert').textContent = 'Network error.'; $('aiAlert').classList.add('show'); }
-    $('aiGo').disabled = false; $('aiGo').textContent = 'Merge with AI';
+      if (!r.ok) { aiErr(d.error || 'Failed.'); aiReset(); return; }
+      trackAi(d.id);
+    } catch { aiErr('Network error.'); aiReset(); }
   });
-  $('aiCopy') && ($('aiCopy').onclick = () => { $('aiResult').select(); try { document.execCommand('copy'); $('aiCopy').textContent = 'Copied'; setTimeout(() => $('aiCopy').textContent = 'Copy', 1500); } catch {} });
-  $('aiDownload') && ($('aiDownload').onclick = () => {
-    const blob = new Blob([$('aiResult').value], { type: 'text/plain' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'merged.txt'; a.click(); URL.revokeObjectURL(a.href);
-  });
+  function aiErr(m) { $('aiAlert').textContent = m; $('aiAlert').classList.add('show'); }
+  function aiReset() { $('aiGo').disabled = false; $('aiGo').textContent = 'Process project'; }
+  function trackAi(id) {
+    clearInterval(aiPoll);
+    aiPoll = setInterval(async () => {
+      let j; try { j = await (await fetch('/api/ai-project/' + id)).json(); } catch { return; }
+      if (j.error && !j.status) { clearInterval(aiPoll); aiErr(j.error); aiReset(); return; }
+      $('aiTotal').textContent = j.progress.total; $('aiDone').textContent = j.progress.done;
+      $('aiChanged').textContent = j.progress.changed; $('aiFailed').textContent = j.progress.failed;
+      $('aiLog').textContent = j.log.join('\n'); $('aiLog').scrollTop = 1e6;
+      if (j.status === 'done' || j.status === 'error') {
+        clearInterval(aiPoll); aiReset();
+        $('aiBar').classList.remove('indet'); $('aiBar').firstElementChild.style.width = '100%';
+        $('aiResult2').classList.add('show');
+        if (j.status === 'done') { $('aiMsg').className = 'msg ok'; $('aiMsg').textContent = `Done — ${j.progress.changed} file(s) updated.`; $('aiDl').style.display = ''; $('aiDl').href = '/api/ai-project/' + id + '/download'; }
+        else { $('aiMsg').className = 'msg err'; $('aiMsg').textContent = 'Failed: ' + j.error; $('aiDl').style.display = 'none'; }
+      }
+    }, 1200);
+  }
 
   let isAdmin = false, lastCloneId = null;
   $('publish').onclick = async () => {

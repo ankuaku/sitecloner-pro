@@ -91,34 +91,49 @@
   </div>
 
   <div class="tool" id="aiBox" style="display:none;max-width:780px;margin-top:16px">
-    <h3 style="margin:0 0 6px;font-size:16px">AI Merge — new design into your backend</h3>
-    <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Paste your backend/template file (keeps all dynamic code) and the new front-end design. AI returns the merged file. Do one page at a time.</p>
-    <div style="display:grid;gap:12px">
+    <h3 style="margin:0 0 4px;font-size:16px">AI for your whole project</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Upload your project ZIP — AI processes every page and gives the full project back as a ZIP. Dynamic/server code stays intact.</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn ghost" type="button" id="tabEdit" style="min-height:38px;padding:0 16px">Edit by command</button>
+      <button class="btn ghost" type="button" id="tabMerge" style="min-height:38px;padding:0 16px">Merge design into backend</button>
+    </div>
+
+    <div id="editInputs">
+      <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Project ZIP</label>
+        <input id="aiProjectZip" type="file" accept=".zip" style="width:100%;font-size:13px;color:var(--text)">
+      </div>
+      <label style="font-size:13px;color:var(--muted)">What should change across the project?</label>
+      <input id="aiCommand" type="text" placeholder="e.g. make all buttons green and the header sticky" style="width:100%;font:inherit;font-size:14px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)">
+    </div>
+
+    <div id="mergeInputs" style="display:none">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px">
+        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Backend project ZIP</label>
           <input id="aiBackendZip" type="file" accept=".zip" style="width:100%;font-size:13px;color:var(--text)">
-          <select id="aiBackendPick" style="display:none;width:100%;margin-top:8px;font:inherit;font-size:13px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px"></select>
         </div>
-        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px">
+        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px">
           <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Frontend / design ZIP</label>
           <input id="aiFrontZip" type="file" accept=".zip" style="width:100%;font-size:13px;color:var(--text)">
-          <select id="aiFrontPick" style="display:none;width:100%;margin-top:8px;font:inherit;font-size:13px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px"></select>
         </div>
       </div>
-      <p style="color:var(--muted);font-size:12.5px;margin:0">Upload ZIPs and pick one file from each, or paste directly below. Merge one page at a time.</p>
-      <div><label style="font-size:13px;color:var(--muted)">Backend / template file (PHP, Blade, EJS, Twig, JSX…)</label>
-        <textarea id="aiTemplate" placeholder="Paste the existing template with its {{ }} / <?php ?> code, or pick from the ZIP above…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
-      <div><label style="font-size:13px;color:var(--muted)">New front-end design (HTML/CSS)</label>
-        <textarea id="aiDesign" placeholder="Paste the new design's HTML, or pick from the ZIP above…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
-      <input id="aiInstruction" type="text" placeholder="Optional: extra instruction (e.g. keep the login form action)" style="font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)">
-      <div><button class="btn" type="button" id="aiGo">Merge with AI</button></div>
+      <p style="color:var(--muted);font-size:12.5px;margin:10px 0 0">Files are matched by name (e.g. <code>product.php</code> ↔ <code>product.html</code>). Unmatched files stay unchanged.</p>
+      <label style="font-size:13px;color:var(--muted);display:block;margin-top:10px">Extra instruction (optional)</label>
+      <input id="aiInstruction" type="text" placeholder="e.g. keep every form action and login logic" style="width:100%;font:inherit;font-size:14px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)">
     </div>
+
+    <div style="margin-top:14px"><button class="btn" type="button" id="aiGo">Process project</button></div>
     <div class="alert" id="aiAlert"></div>
-    <div id="aiResultWrap" style="display:none;margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label style="font-size:13px;color:var(--muted)">Merged result</label>
-        <span style="display:flex;gap:8px"><button class="btn ghost" type="button" id="aiCopy" style="min-height:34px;padding:0 12px">Copy</button><button class="btn ghost" type="button" id="aiDownload" style="min-height:34px;padding:0 12px">Download</button></span></div>
-      <textarea id="aiResult" readonly style="width:100%;min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea>
+
+    <div class="status" id="aiStatus" style="margin-top:16px">
+      <div class="bar indet" id="aiBar"><i></i></div>
+      <div class="counters"><span><b id="aiDone">0</b>/ <b id="aiTotal">0</b> files</span><span><b id="aiChanged">0</b>updated</span><span><b id="aiFailed">0</b>failed</span></div>
+      <div class="log" id="aiLog"></div>
+      <div class="result" id="aiResult2">
+        <span class="msg" id="aiMsg"></span>
+        <a class="btn" id="aiDl" href="#">Download project ZIP</a>
+      </div>
     </div>
   </div>
 

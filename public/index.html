@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{SITE_NAME}} — Clone Any Website UI</title>
+<meta name="description" content="Clone any website's UI by URL. Download HTML, CSS, JavaScript, images and fonts as a ready-to-use ZIP.">
+<link rel="stylesheet" href="/static/style.css">
+<style>:root{--primary:{{PRIMARY}}}</style>
+<!--HEAD_CODE-->
+</head>
+<body>
+<div class="maint" id="maint">The service is under maintenance. Please check back soon.</div>
+<div class="wrap">
+  <nav class="nav">
+    <a class="brand" href="/"><span class="logo" id="logo">SC</span><span id="brandName">{{SITE_NAME}}</span></a>
+    <div><a class="link" href="#how">How it works</a><a class="link" href="#features">Features</a><a class="link" href="#faq">FAQ</a></div>
+  </nav>
+
+  <header class="hero">
+    <span class="badge">React · Vue · Next.js · WordPress · Any website</span>
+    <h1>Clone any website's <span>UI</span><br>in one click</h1>
+    <p class="sub" id="tagline">Paste a URL and get the complete frontend — exact UI, every asset, working offline.</p>
+  </header>
+
+  <div class="ad" id="adHeader"></div>
+
+  <form class="tool" id="form" autocomplete="off">
+    <div class="urlrow">
+      <input id="url" type="text" inputmode="url" placeholder="https://example.com" required aria-label="Website URL">
+      <button class="btn" id="go" type="submit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+        Clone website
+      </button>
+    </div>
+    <div class="opts">
+      <label>Engine <select id="engine">
+        <option value="browser">Smart — real browser (React, Vue, Next.js)</option>
+        <option value="fast">Fast — simple HTML sites</option>
+      </select></label>
+      <label>Download <select id="output">
+        <option value="both">Static + Interactive (recommended)</option>
+        <option value="static">Static only — editable HTML/CSS</option>
+        <option value="interactive">Interactive only — works like the original</option>
+      </select></label>
+      <label>Pages <select id="pages"></select></label>
+      <label><input type="checkbox" id="includeMedia"> Include videos</label>
+    </div>
+    <label class="terms"><input type="checkbox" id="agree"> <span id="terms">Only clone websites you own or have permission to copy.</span></label>
+    <div class="alert" id="alert"></div>
+
+    <div class="status" id="status">
+      <div class="bar indet" id="bar"><i></i></div>
+      <div class="counters">
+        <span><b id="cPages">0</b>pages</span>
+        <span><b id="cAssets">0</b>files</span>
+        <span><b id="cSize">0 KB</b></span>
+        <span><b id="cFailed">0</b>skipped</span>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="result" id="result">
+        <span class="msg" id="msg"></span>
+        <span style="display:flex;gap:8px">
+          <button class="btn ghost" type="button" id="again">Clone another</button>
+          <a class="btn" id="dl" href="#">Download ZIP</a>
+        </span>
+      </div>
+    </div>
+  </form>
+
+  <div class="ad" id="adFooter"></div>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <div class="grid steps">
+      <div class="feat"><h3>Paste a URL</h3><p>Enter the address of the page whose design you want to copy.</p></div>
+      <div class="feat"><h3>We fetch everything</h3><p>HTML, stylesheets, scripts, images, background images and web fonts are downloaded.</p></div>
+      <div class="feat"><h3>Paths get fixed</h3><p>Every link is rewritten to local files, so the page opens offline exactly like the original.</p></div>
+      <div class="feat"><h3>Download the ZIP</h3><p>Open index.html, edit the code, and use it as a starting point for your own project.</p></div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="feat"><div class="ic">⚛</div><h3>Works with React, Vue, Next.js</h3><p>A real browser renders the page first, so JavaScript-built sites come out exactly as they look.</p></div>
+      <div class="feat"><div class="ic">▶</div><h3>Interactive copy</h3><p>Menus, sliders, tabs, routing and the data shown on load keep working offline — the site's own code runs.</p></div>
+      <div class="feat"><div class="ic">✎</div><h3>Editable static copy</h3><p>Clean HTML + CSS with every image and font local. Opens with a double-click, easy to customise.</p></div>
+      <div class="feat"><div class="ic">{}</div><h3>CSS-in-JS captured</h3><p>styled-components, Emotion, MUI, Tailwind, web components and canvas charts are all preserved.</p></div>
+      <div class="feat"><div class="ic">⧉</div><h3>Multi-page</h3><p>Clone the home page plus linked inner pages, with navigation between them working locally.</p></div>
+      <div class="feat"><div class="ic">⛨</div><h3>Safe & private</h3><p>Files are deleted automatically after a short time. Nothing is shared.</p></div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <h2>FAQ</h2>
+    <details><summary>Will the cloned site work offline?</summary><p>Yes. Everything the page loaded is saved locally. Actions that send data to a server — login, checkout, contact forms — need the original backend, because only the front-end is copied.</p></details>
+    <details><summary>What is the difference between Static and Interactive?</summary><p><b>Static</b> is a frozen, editable copy of exactly what is on screen: HTML + CSS + images, no JavaScript. It opens with a double-click. <b>Interactive</b> keeps the site's own JavaScript and replays everything the page loaded, so menus, sliders and page switching work. Open it with the included start file or upload it to any hosting.</p></details>
+    <details><summary>Does it work with React / Next.js / Vue sites?</summary><p>Yes. Use the Smart engine — it loads the page in a real browser, waits for it to finish, scrolls to load lazy images and then captures everything, including styled-components and Emotion styles.</p></details>
+    <details><summary>Can I clone any website?</summary><p>Only clone sites you own or have permission to copy. Designs, logos and text are usually protected by copyright and trademarks — use clones for learning, backups or as a starting point for your own original design.</p></details>
+    <details><summary>How long are files kept?</summary><p>ZIP files are removed automatically after a short period.</p></details>
+  </section>
+</div>
+<footer><div class="wrap" id="footerText">© {{SITE_NAME}}</div></footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

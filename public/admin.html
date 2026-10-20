@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin — {{SITE_NAME}}</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+:root{--primary:{{PRIMARY}}}
+.panel{max-width:900px;margin:30px auto;padding:0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:18px}
+.card h3{margin:0 0 16px;font-size:16px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.f label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.f input[type=text],.f input[type=number],.f input[type=password],.f textarea{width:100%;font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)}
+.f textarea{min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.f.full{grid-column:1/-1}
+.f small{color:var(--muted);font-size:12px}
+.check{display:flex;gap:10px;align-items:center;font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--bg2);border-radius:12px;padding:14px}
+.stat b{display:block;font-size:24px}
+.stat span{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:500}
+td.u{word-break:break-all}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.saved{color:var(--ok);font-size:14px;margin-left:12px;opacity:0;transition:opacity .3s}
+.saved.show{opacity:1}
+#login{max-width:360px;margin:12vh auto}
+.tag{font-size:11px;padding:2px 7px;border-radius:99px}
+.tag.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.tag.err{background:color-mix(in srgb,var(--err) 18%,transparent);color:var(--err)}
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h3>Admin login</h3>
+  <form id="loginForm" class="f">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autofocus>
+    <div class="alert" id="loginErr"></div>
+    <button class="btn" style="width:100%;margin-top:14px">Log in</button>
+  </form>
+</div>
+
+<div class="panel" id="app" hidden>
+  <div class="top">
+    <a class="brand" href="/"><span class="logo">SC</span>{{SITE_NAME}} <span style="color:var(--muted);font-weight:400">/ Admin</span></a>
+    <button class="btn ghost" id="logout" style="min-height:38px">Log out</button>
+  </div>
+
+  <div class="card">
+    <h3>Overview</h3>
+    <div class="stats">
+      <div class="stat"><b id="sTotal">0</b><span>Successful clones</span></div>
+      <div class="stat"><b id="sFailed">0</b><span>Failed clones</span></div>
+      <div class="stat"><b id="sRunning">0</b><span>Running now</span></div>
+      <div class="stat"><b id="sQueued">0</b><span>In queue</span></div>
+      <div class="stat"><b id="sPup">—</b><span>Render engine (puppeteer)</span></div>
+    </div>
+  </div>
+
+  <form id="settings">
+    <div class="card">
+      <h3>Branding</h3>
+      <div class="fields">
+        <div class="f"><label>Site name</label><input type="text" name="siteName"></div>
+        <div class="f"><label>Logo text (2–3 letters)</label><input type="text" name="logoText" maxlength="3"></div>
+        <div class="f"><label>Primary color</label><input type="text" name="primaryColor" placeholder="#5b5bf0"></div>
+        <div class="f full"><label>Tagline</label><input type="text" name="tagline"></div>
+        <div class="f full"><label>Footer text</label><input type="text" name="footerText"></div>
+        <div class="f full"><label>Terms checkbox text</label><input type="text" name="termsText"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Limits</h3>
+      <div class="fields">
+        <div class="f"><label>Max pages per clone</label><input type="number" name="maxPagesLimit" min="1" max="200"></div>
+        <div class="f"><label>Max size per clone (MB)</label><input type="number" name="maxSizeMb" min="1"></div>
+        <div class="f"><label>Max files per clone</label><input type="number" name="maxAssets" min="10"></div>
+        <div class="f"><label>Time limit per clone (seconds)</label><input type="number" name="timeoutSec" min="10"></div>
+        <div class="f"><label>Clones per hour per visitor</label><input type="number" name="clonesPerHour" min="1"><small>Admins are not limited.</small></div>
+        <div class="f"><label>Delete ZIPs after (minutes)</label><input type="number" name="keepZipMinutes" min="1"></div>
+        <div class="f full check"><input type="checkbox" name="allowRender" id="allowRender"><label for="allowRender" style="margin:0;color:var(--text)">Enable Smart engine — real browser for React/Vue/Next.js + Interactive copies (requires puppeteer)</label></div>
+        <div class="f full check"><input type="checkbox" name="maintenance" id="maintenance"><label for="maintenance" style="margin:0;color:var(--text)">Maintenance mode (visitors cannot clone)</label></div>
+        <div class="f full"><label>Blocked domains (one per line)</label><textarea name="blockedDomains" placeholder="bank.com&#10;paypal.com"></textarea><small>Sub-domains are blocked too.</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Ads & code</h3>
+      <div class="fields">
+        <div class="f full"><label>Ad above the tool (HTML)</label><textarea name="adHeader"></textarea></div>
+        <div class="f full"><label>Ad below the tool (HTML)</label><textarea name="adFooter"></textarea></div>
+        <div class="f full"><label>Code inside &lt;head&gt; (analytics, verification tags)</label><textarea name="headCode"></textarea></div>
+      </div>
+    </div>
+    <button class="btn" type="submit">Save settings</button><span class="saved" id="saved">Saved ✓</span>
+  </form>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Recent clones</h3>
+    <table><thead><tr><th>Time</th><th>URL</th><th>Result</th><th>Pages / files</th><th>IP</th></tr></thead><tbody id="recent"></tbody></table>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const form = $('settings');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function init() {
+  const me = await (await fetch('/api/admin/me')).json();
+  $('login').hidden = me.admin; $('app').hidden = !me.admin;
+  if (!me.admin) return;
+  const s = await (await fetch('/api/admin/settings')).json();
+  for (const el of form.elements) {
+    if (!el.name || !(el.name in s)) continue;
+    if (el.type === 'checkbox') el.checked = !!s[el.name]; else el.value = s[el.name];
+  }
+  loadStats(); setInterval(loadStats, 10000);
+}
+
+async function loadStats() {
+  const st = await (await fetch('/api/admin/stats')).json();
+  $('sTotal').textContent = st.totalClones; $('sFailed').textContent = st.failedClones;
+  $('sRunning').textContent = st.running; $('sQueued').textContent = st.queued;
+  $('sPup').textContent = st.puppeteerInstalled ? 'Installed' : 'Not installed';
+  $('recent').innerHTML = st.lastClones.map(c => `<tr><td>${esc(new Date(c.at).toLocaleString())}</td><td class="u">${esc(c.url)}</td>
+    <td>${c.ok ? '<span class="tag ok">OK</span>' : '<span class="tag err">Failed</span> ' + esc(c.error)}</td>
+    <td>${c.pages} / ${c.assets}</td><td>${esc(c.ip)}</td></tr>`).join('') || '<tr><td colspan="5" style="color:var(--muted)">No clones yet</td></tr>';
+}
+
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: $('pw').value }) });
+  if (r.ok) return init();
+  const d = await r.json().catch(() => ({}));
+  $('loginErr').textContent = d.error || 'Login failed'; $('loginErr').classList.add('show');
+};
+
+form.onsubmit = async e => {
+  e.preventDefault();
+  const data = {};
+  for (const el of form.elements) if (el.name) data[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+  const r = await fetch('/api/admin/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+  if (r.ok) { $('saved').classList.add('show'); setTimeout(() => $('saved').classList.remove('show'), 2000); }
+};
+
+$('logout').onclick = async () => { await fetch('/api/admin/logout', { method: 'POST' }); location.reload(); };
+init();
+</script>
+</body>
+</html>

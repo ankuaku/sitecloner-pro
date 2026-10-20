@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteCloner Pro — Documentation</title>
+<style>
+  :root { --p: #5b5bf0; --line: #e4e6ef; --muted: #5f6577; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1b1e27; background: #fafbfe; }
+  .layout { display: grid; grid-template-columns: 240px 1fr; max-width: 1100px; margin: 0 auto; }
+  nav { position: sticky; top: 0; height: 100vh; padding: 30px 20px; border-right: 1px solid var(--line); overflow: auto; }
+  nav b { display: block; margin-bottom: 14px; }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 5px 0; font-size: 14px; }
+  nav a:hover { color: var(--p); }
+  main { padding: 30px 40px 80px; min-width: 0; }
+  h1 { margin-top: 0; } h2 { margin-top: 48px; padding-top: 10px; border-top: 1px solid var(--line); }
+  code { background: #eef0f7; padding: 2px 6px; border-radius: 5px; font-size: 14px; }
+  pre { background: #15171f; color: #e6e8f0; padding: 14px 16px; border-radius: 10px; overflow: auto; font-size: 14px; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td, th { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f1f2f8; }
+  .note { background: #fff7e0; border-left: 4px solid #f0b400; padding: 10px 14px; border-radius: 6px; }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 20px 16px; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <b>SiteCloner Pro v1.1</b>
+  <a href="#intro">Introduction</a><a href="#req">Requirements</a><a href="#install">Installation</a>
+  <a href="#env">Configuration (.env)</a><a href="#admin">Admin panel</a><a href="#engines">Engines &amp; outputs</a>
+  <a href="#deploy">Deployment</a><a href="#custom">Customisation</a><a href="#api">API</a>
+  <a href="#security">Security</a><a href="#faq">Troubleshooting</a><a href="#files">File structure</a><a href="#changelog">Changelog</a>
+</nav>
+<main>
+<h1>SiteCloner Pro — Documentation</h1>
+
+<h2 id="intro">Introduction</h2>
+<p>SiteCloner Pro is a self-hosted web app that downloads the complete frontend of any web page from a single URL — including sites built with React, Vue, Angular, Next.js and Nuxt.</p>
+<p>A real browser loads the page, waits until it has finished building itself, scrolls it to load lazy content and records every file it received. The visitor gets a ZIP with two copies:</p>
+<ul>
+  <li><b>static/</b> — an exact, frozen, editable copy: HTML + CSS + images + fonts, no JavaScript. Opens with a double-click.</li>
+  <li><b>interactive/</b> — the site's own JavaScript and every response it loaded (scripts, code-split chunks, fonts, images and GET API data), replayed offline by a service worker. Menus, sliders, tabs and client-side page routing keep working.</li>
+</ul>
+<h2 id="req">Requirements</h2>
+<ul>
+  <li>Node.js <b>20 or newer</b> (22 LTS recommended)</li>
+  <li>Any Linux / Windows / macOS server or a host like Render, Railway, a VPS or Docker</li>
+  <li>About 300&nbsp;MB free disk (more if you allow large clones)</li>
+  <li>1&nbsp;GB RAM minimum (2&nbsp;GB recommended) for the Smart engine</li>
+</ul>
+<p class="note">Shared PHP hosting (cPanel without Node.js) cannot run this app.</p>
+
+<h2 id="install">Installation</h2>
+<pre><code>unzip sitecloner-pro.zip &amp;&amp; cd sitecloner-pro
+npm install
+cp .env.example .env     # then edit .env
+npm start</code></pre>
+<p>Open <code>http://localhost:3000</code> for the tool and <code>http://localhost:3000/admin</code> for the admin panel.</p>
+
+<h2 id="env">Configuration (.env)</h2>
+<table>
+<tr><th>Variable</th><th>Default</th><th>What it does</th></tr>
+<tr><td><code>PORT</code></td><td>3000</td><td>Port the server listens on.</td></tr>
+<tr><td><code>ADMIN_PASSWORD</code></td><td>admin123</td><td>Password for <code>/admin</code>. <b>Change it.</b></td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td>random</td><td>Signs the admin login cookie. Set a fixed long value, otherwise admins are logged out on every restart.</td></tr>
+<tr><td><code>MAX_CONCURRENT</code></td><td>2</td><td>Clones running at the same time. Extra requests wait in a queue.</td></tr>
+<tr><td><code>TRUST_PROXY</code></td><td>1</td><td>Number of proxies (Nginx, Cloudflare, Render) in front of the app, so rate limits see the real visitor IP.</td></tr>
+<tr><td><code>ALLOW_PRIVATE_NETWORK</code></td><td>false</td><td>Keep <code>false</code> in production. <code>true</code> lets you clone <code>localhost</code> sites while testing.</td></tr>
+<tr><td><code>PUPPETEER_EXECUTABLE_PATH</code></td><td>—</td><td>Path to a system Chrome/Chromium for the Smart engine (set automatically in the Docker image).</td></tr>
+<tr><td><code>BROWSER_PROXY</code></td><td>—</td><td>Optional proxy for the browser, e.g. <code>http://user:pass@host:port</code>. Useful if sites start blocking your server IP.</td></tr>
+</table>
+
+<h2 id="admin">Admin panel</h2>
+<p>Log in at <code>/admin</code>. Settings are saved instantly to <code>data/settings.json</code> — no restart needed.</p>
+<ul>
+  <li><b>Overview</b> — successful and failed clones, running jobs, queue size, whether the render engine is installed.</li>
+  <li><b>Branding</b> — site name, logo letters, primary colour, tagline, footer and terms text.</li>
+  <li><b>Limits</b> — max pages, total size (MB), max files, time limit, clones per hour per visitor, how long ZIPs are kept, Render mode switch, maintenance mode and a blocked-domain list.</li>
+  <li><b>Ads &amp; code</b> — HTML/JS for an ad above and below the tool (AdSense etc.) and code for <code>&lt;head&gt;</code> (Google Analytics, verification tags).</li>
+  <li><b>Recent clones</b> — last 50 clones with URL, result and visitor IP.</li>
+</ul>
+<p>Logged-in admins bypass the hourly limit and maintenance mode, which is handy for testing.</p>
+
+<h2 id="engines">Engines &amp; outputs</h2>
+<table>
+<tr><th>Engine</th><th>How it works</th><th>Best for</th></tr>
+<tr><td><b>Smart</b> (default)</td><td>Headless Chrome renders the page, scrolls it, waits for images and fonts, then captures the live DOM and every network response.</td><td>React, Vue, Angular, Next.js, Nuxt, Svelte, MUI/Emotion/styled-components, Tailwind, any modern site.</td></tr>
+<tr><td><b>Fast</b></td><td>Downloads the HTML the server sends and its assets over plain HTTP. No browser, very light.</td><td>Static sites, WordPress, landing pages, low-RAM servers.</td></tr>
+</table>
+<p>What the Smart engine preserves in the static copy:</p>
+<ul>
+  <li>CSS-in-JS rules that only exist in the browser's CSSOM (styled-components, Emotion/MUI, JSS) and constructable stylesheets</li>
+  <li>Open shadow DOM (web components), saved as declarative shadow DOM</li>
+  <li>Canvas drawings and charts, converted to images</li>
+  <li>Form values, checked boxes and selected options</li>
+  <li>Lazy-loaded and JavaScript-inserted images; for responsive images with many sizes, the size actually shown is kept to avoid huge downloads</li>
+</ul>
+<table>
+<tr><th>Output</th><th>Opens with</th><th>JavaScript</th></tr>
+<tr><td>Static + Interactive</td><td>both folders in one ZIP</td><td>—</td></tr>
+<tr><td>Static only</td><td>double-click <code>index.html</code></td><td>removed (clean, editable)</td></tr>
+<tr><td>Interactive only</td><td><code>START-WINDOWS.bat</code>, <code>node serve.js</code>, or upload to Netlify/Vercel/any https host</td><td>original, working</td></tr>
+</table>
+<p class="note">The interactive copy uses a service worker, which browsers only allow on <code>http://localhost</code> or <code>https://</code>. That is why it ships with a tiny zero-dependency <code>serve.js</code> and Netlify/Vercel rewrite files. Requests that send data (POST: logins, checkout, forms) still go to the original server.</p>
+<p>Turn the Smart engine on or off in <b>Admin → Limits</b>. Puppeteer is installed with <code>npm install</code> and downloads Chrome automatically; the Docker image uses system Chromium. Each Smart clone uses one Chrome instance (~250&nbsp;MB RAM), so keep <code>MAX_CONCURRENT</code> at 2 on a 1&nbsp;GB server.</p>
+
+<h2 id="deploy">Deployment</h2>
+<h3>Render.com</h3>
+<ol>
+  <li>Push the folder to a GitHub repository.</li>
+  <li>In Render choose <b>New → Blueprint</b> and select the repository. It reads <code>render.yaml</code> and builds the <code>Dockerfile</code>.</li>
+  <li>Enter <code>ADMIN_PASSWORD</code> when asked. A disk is mounted at <code>/app/data</code> so settings survive deploys.</li>
+</ol>
+<h3>VPS (Ubuntu) with PM2 + Nginx</h3>
+<pre><code>curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - &amp;&amp; sudo apt install -y nodejs nginx
+npm install &amp;&amp; sudo npm i -g pm2
+pm2 start ecosystem.config.cjs &amp;&amp; pm2 save &amp;&amp; pm2 startup</code></pre>
+<p>Nginx site config:</p>
+<pre><code>server {
+  server_name yourdomain.com;
+  client_max_body_size 1m;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 180s;
+  }
+}</code></pre>
+<p>Then add HTTPS with <code>sudo certbot --nginx</code>.</p>
+<h3>Docker</h3>
+<pre><code>docker build -t sitecloner .
+docker run -d -p 3000:3000 --env-file .env -v $PWD/data:/app/data sitecloner</code></pre>
+
+<h2 id="custom">Customisation</h2>
+<ul>
+  <li>Page text, sections and FAQ: <code>public/index.html</code></li>
+  <li>Colours, spacing, fonts: <code>public/static/style.css</code> (the primary colour is also set from the admin panel)</li>
+  <li>Front-end behaviour: <code>public/static/app.js</code></li>
+  <li>Clone engine: <code>src/cloner.js</code> — e.g. add more lazy-load attributes in the image section</li>
+</ul>
+
+<h2 id="api">API</h2>
+<table>
+<tr><th>Method &amp; path</th><th>Body / result</th></tr>
+<tr><td><code>POST /api/clone</code></td><td><code>{"url":"https://site.com","pages":3,"engine":"browser|fast","output":"both|static|interactive","includeMedia":false,"agree":true}</code> → <code>{"id":"…"}</code></td></tr>
+<tr><td><code>GET /api/clone/:id</code></td><td>Status: <code>queued | running | zipping | done | error</code>, progress counters and recent log lines.</td></tr>
+<tr><td><code>GET /api/clone/:id/download</code></td><td>The ZIP file (when status is <code>done</code>).</td></tr>
+<tr><td><code>GET /api/config</code></td><td>Public settings used by the front-end.</td></tr>
+</table>
+
+<h2 id="security">Security</h2>
+<ul>
+  <li><b>SSRF protection</b>: every page, asset and redirect is checked; private, loopback, link-local and cloud-metadata addresses are refused. Keep <code>ALLOW_PRIVATE_NETWORK=false</code> on a public server.</li>
+  <li><b>Limits</b>: per-file 25&nbsp;MB, per-clone total size, file count and time limit, per-IP hourly limit, queue cap.</li>
+  <li><b>Admin</b>: login is rate-limited (10 tries / 15 min), cookie is signed, HTTP-only and SameSite=strict.</li>
+  <li><b>Clean-up</b>: ZIPs are deleted after the time set in the admin panel.</li>
+  <li><b>Blocked domains</b>: add banks, payment providers or any brand you don't want cloned on your service.</li>
+</ul>
+<p class="note">Tell your users (the terms checkbox does this) to clone only sites they own or have permission to copy. Website designs, logos and text are normally protected by copyright and trademark law.</p>
+
+<h2 id="faq">Troubleshooting</h2>
+<p><b>The clone is blank or missing content.</b> You used the Fast engine on a JavaScript site — choose the Smart engine.</p>
+<p><b>Interactive copy shows "Loading clone…" or a blank page.</b> It was opened by double-click (file://). Use START-WINDOWS.bat / node serve.js, or upload it to a host.</p>
+<p><b>Some items in the interactive copy are empty.</b> Data that the page would only fetch after a click or search was never loaded during cloning, so it is not in the copy.</p>
+<p><b>"HTTP 403" on the first page.</b> The site blocks automated requests (e.g. Cloudflare bot protection). These sites can't be cloned.</p>
+<p><b>Admin keeps logging out after restart.</b> Set a fixed <code>SESSION_SECRET</code> in <code>.env</code>.</p>
+<p><b>Rate limit hits everyone at once behind a proxy.</b> Set <code>TRUST_PROXY</code> to the number of proxies in front of the app.</p>
+<p><b>"Failed to launch the browser".</b> On Linux install Chrome libraries (<code>sudo apt install -y chromium</code>) and set <code>PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium</code>, or use the Docker image.</p>
+
+<h2 id="files">File structure</h2>
+<pre><code>server.js              Express server, API, admin, job queue
+src/cloner.js          Clone engine (crawl, assets, CSS rewrite, ZIP)
+src/browser.js         Smart engine: headless Chrome, capture, DOM freeze
+src/mirror.js          Interactive copy builder (service-worker replay)
+src/guard.js           Private-network (SSRF) protection
+src/settings.js        Settings &amp; stats storage
+public/index.html      Tool page
+public/admin.html      Admin panel
+public/static/         CSS + JS for the front-end
+data/settings.json     Created automatically (settings + stats)
+downloads/             Temporary ZIPs (auto-deleted)
+Dockerfile, render.yaml, ecosystem.config.cjs, .env.example</code></pre>
+
+<h2 id="changelog">Changelog</h2>
+<p><b>1.1.0</b> — Smart real-browser engine for React/Vue/Next.js, interactive offline copy, CSS-in-JS / shadow DOM / canvas capture.</p>
+<p><b>1.0.0</b> — Initial release.</p>
+</main>
+</div>
+</body>
+</html>

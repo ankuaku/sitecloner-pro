@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sitecloner-pro
+    runtime: docker
+    plan: standard   # 2 GB RAM — Chrome needs it
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MAX_CONCURRENT
+        value: "2"
+    disk:
+      name: data
+      mountPath: /app/data
+      sizeGB: 1

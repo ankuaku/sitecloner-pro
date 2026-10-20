@@ -91,6 +91,35 @@
   };
   bindZip();
 
+  // AI merge — ZIP file pickers (parsed in the browser with JSZip)
+  const TEXT_EXT = /\.(html?|php|phtml|blade\.php|ejs|twig|vue|jsx|tsx|svelte|liquid|hbs|handlebars|mustache|erb|aspx|cshtml|astro|htm|css|js|ts|txt)$/i;
+  async function fillFromZip(fileInput, pick, targetId) {
+    const f = fileInput.files[0];
+    if (!f || typeof JSZip === 'undefined') return;
+    pick.style.display = 'none'; pick.innerHTML = '';
+    try {
+      const zip = await JSZip.loadAsync(f);
+      const files = [];
+      zip.forEach((p, e) => { if (!e.dir && TEXT_EXT.test(p) && !/(^|\/)(__MACOSX|node_modules|\.git)\//.test(p)) files.push(p); });
+      files.sort((a, b) => a.localeCompare(b));
+      if (!files.length) { $('aiAlert').textContent = 'No editable text/template files found in that ZIP.'; $('aiAlert').classList.add('show'); return; }
+      pick.add(new Option('— pick a file —', ''));
+      files.forEach(p => pick.add(new Option(p.length > 60 ? '…' + p.slice(-58) : p, p)));
+      pick.style.display = '';
+      pick._zip = zip;
+      pick.onchange = async () => {
+        if (!pick.value) return;
+        try {
+          const txt = await pick._zip.file(pick.value).async('string');
+          if (txt.length > 80000) { $('aiAlert').textContent = 'That file is larger than ~80 KB — pick a smaller page.'; $('aiAlert').classList.add('show'); }
+          $(targetId).value = txt;
+        } catch { $('aiAlert').textContent = 'Could not read that file from the ZIP.'; $('aiAlert').classList.add('show'); }
+      };
+    } catch { $('aiAlert').textContent = 'Could not open that ZIP.'; $('aiAlert').classList.add('show'); }
+  }
+  $('aiBackendZip') && ($('aiBackendZip').onchange = () => fillFromZip($('aiBackendZip'), $('aiBackendPick'), 'aiTemplate'));
+  $('aiFrontZip') && ($('aiFrontZip').onchange = () => fillFromZip($('aiFrontZip'), $('aiFrontPick'), 'aiDesign'));
+
   // AI merge
   $('aiGo') && ($('aiGo').onclick = async () => {
     const template = $('aiTemplate').value, design = $('aiDesign').value;

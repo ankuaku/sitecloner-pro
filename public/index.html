@@ -94,10 +94,23 @@
     <h3 style="margin:0 0 6px;font-size:16px">AI Merge — new design into your backend</h3>
     <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Paste your backend/template file (keeps all dynamic code) and the new front-end design. AI returns the merged file. Do one page at a time.</p>
     <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px">
+          <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Backend project ZIP</label>
+          <input id="aiBackendZip" type="file" accept=".zip" style="width:100%;font-size:13px;color:var(--text)">
+          <select id="aiBackendPick" style="display:none;width:100%;margin-top:8px;font:inherit;font-size:13px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px"></select>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px">
+          <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px">Frontend / design ZIP</label>
+          <input id="aiFrontZip" type="file" accept=".zip" style="width:100%;font-size:13px;color:var(--text)">
+          <select id="aiFrontPick" style="display:none;width:100%;margin-top:8px;font:inherit;font-size:13px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px"></select>
+        </div>
+      </div>
+      <p style="color:var(--muted);font-size:12.5px;margin:0">Upload ZIPs and pick one file from each, or paste directly below. Merge one page at a time.</p>
       <div><label style="font-size:13px;color:var(--muted)">Backend / template file (PHP, Blade, EJS, Twig, JSX…)</label>
-        <textarea id="aiTemplate" placeholder="Paste the existing template with its {{ }} / <?php ?> code…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
+        <textarea id="aiTemplate" placeholder="Paste the existing template with its {{ }} / <?php ?> code, or pick from the ZIP above…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
       <div><label style="font-size:13px;color:var(--muted)">New front-end design (HTML/CSS)</label>
-        <textarea id="aiDesign" placeholder="Paste the new design's HTML…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
+        <textarea id="aiDesign" placeholder="Paste the new design's HTML, or pick from the ZIP above…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
       <input id="aiInstruction" type="text" placeholder="Optional: extra instruction (e.g. keep the login form action)" style="font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)">
       <div><button class="btn" type="button" id="aiGo">Merge with AI</button></div>
     </div>
@@ -149,6 +162,7 @@
   </section>
 </div>
 <footer><div class="wrap" id="footerText">© {{SITE_NAME}}</div></footer>
+<script src="/static/jszip.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

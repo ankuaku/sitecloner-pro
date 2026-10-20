@@ -32,7 +32,7 @@
   <a href="#intro">Introduction</a><a href="#req">Requirements</a><a href="#install">Installation</a>
   <a href="#env">Configuration (.env)</a><a href="#admin">Admin panel</a><a href="#engines">Engines &amp; outputs</a>
   <a href="#deploy">Deployment</a><a href="#custom">Customisation</a><a href="#api">API</a>
-  <a href="#security">Security</a><a href="#faq">Troubleshooting</a><a href="#files">File structure</a><a href="#changelog">Changelog</a>
+  <a href="#cloudflare">Cloudflare &amp; bots</a><a href="#security">Security</a><a href="#faq">Troubleshooting</a><a href="#files">File structure</a><a href="#changelog">Changelog</a>
 </nav>
 <main>
 <h1>SiteCloner Pro — Documentation</h1>
@@ -152,6 +152,17 @@ docker run -d -p 3000:3000 --env-file .env -v $PWD/data:/app/data sitecloner</co
 <tr><td><code>GET /api/clone/:id/download</code></td><td>The ZIP file (when status is <code>done</code>).</td></tr>
 <tr><td><code>GET /api/config</code></td><td>Public settings used by the front-end.</td></tr>
 </table>
+
+<h2 id="cloudflare">Cloudflare &amp; bot protection</h2>
+<p>Most sites behind Cloudflare are just using it as a CDN and clone normally. A smaller set turn on "Under Attack" / Bot Fight mode and show a <b>"Just a moment…"</b> challenge. The Smart engine uses a stealth browser and waits these out where possible; sites protected by a full CAPTCHA (Turnstile) or a login wall cannot be cloned by any tool.</p>
+<p>Two things raise the success rate a lot:</p>
+<ul>
+  <li><b>A residential proxy.</b> Datacenter / VPS IPs get challenged hardest. Set <code>BROWSER_PROXY=http://user:pass@host:port</code> to route the browser through a residential IP.</li>
+  <li><b>FlareSolverr.</b> A free, open-source Cloudflare JS-challenge solver that runs as its own service. When a challenge is detected, SiteCloner Pro hands the URL to FlareSolverr, gets back the clearance cookies, and reuses them to load the real page. Run both together with the included <code>docker-compose.yml</code>, or start FlareSolverr yourself and set its address in <b>Admin → Cloudflare / anti-bot</b> (or the <code>FLARESOLVERR_URL</code> env var). It handles most "Just a moment" sites, but not Turnstile CAPTCHA.</li>
+</ul>
+<pre><code># run app + FlareSolverr together
+docker compose up -d</code></pre>
+<p class="note">No tool can reliably clone sites protected by a CAPTCHA or that require login (banks, exchanges like bscscan, Facebook). State this clearly to your users.</p>
 
 <h2 id="security">Security</h2>
 <ul>

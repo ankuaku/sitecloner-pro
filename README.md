@@ -11,6 +11,7 @@ Paste a URL → get a ZIP with the page's HTML, CSS, JavaScript, images and font
 - Captures CSS-in-JS (styled-components, Emotion/MUI, JSS), shadow DOM, canvas charts, lazy images, form state
 - Fast engine (no browser) for simple sites, multi-page crawl, deep CSS rewrite (`@import`, `url()`, `@font-face`)
 - Admin panel: branding, limits, per-IP rate limit, blocked domains, ads, analytics code, maintenance mode, history
+- Cloudflare JS-challenge support via optional FlareSolverr (`docker-compose.yml`) + residential proxy (`BROWSER_PROXY`)
 - Security: private-network (SSRF) protection on every request (server and browser), size/file/time limits, auto-delete
 
 ## Quick start

@@ -125,6 +125,7 @@ app.post('/api/clone', cloneLimiter, (req, res) => {
     maxDepth: Math.min(Math.max(1, Number(depth) || s.fullSiteDepthLimit), s.fullSiteDepthLimit),
     respectRobots: s.respectRobots,
     politenessMs: s.politenessMs,
+    flaresolverrUrl: (s.flaresolverrUrl || process.env.FLARESOLVERR_URL || '').trim(),
     output: ['static', 'interactive', 'both'].includes(output) ? output : 'both',
     includeJs: includeJs !== false,
     includeMedia: !!includeMedia,

@@ -1,0 +1,26 @@
+# Runs SiteCloner Pro together with FlareSolverr (Cloudflare JS-challenge solver).
+# Usage:  docker compose up -d   then open http://SERVER_IP:3000
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - ADMIN_PASSWORD=change-me-please
+      - SESSION_SECRET=replace-with-a-long-random-string
+      - MAX_CONCURRENT=2
+      - TRUST_PROXY=1
+      # Point the app at the FlareSolverr service below:
+      - FLARESOLVERR_URL=http://flaresolverr:8191
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - flaresolverr
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    # No ports exposed publicly — only the app talks to it over the internal network.

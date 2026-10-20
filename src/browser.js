@@ -113,13 +113,30 @@ export class BrowserSession {
       this.job.say('Page kept loading — continuing with what is on screen');
     }
     // If a Cloudflare-style interstitial is showing, give it time to clear itself.
+    const challenge = b => b && /cloudflare|bot-check|verification|human/i.test(b);
+    const stillBlocked = async () => { try { return detectBlockPage(await page.content(), await page.title()); } catch { return null; } };
     for (let tries = 0; tries < 6; tries++) {
-      let block;
-      try { block = detectBlockPage(await page.content(), await page.title()); } catch { break; }
-      if (!block || !/cloudflare|bot-check|verification|human/i.test(block)) break;
+      if (!challenge(await stillBlocked())) break;
       if (tries === 0) this.job.say('Site shows a bot-check — waiting for it to clear…');
       await page.waitForNavigation({ timeout: 8000, waitUntil: 'networkidle2' }).catch(() => {});
       await sleep(2500);
+    }
+    // Still blocked? If a FlareSolverr endpoint is configured, let it solve the challenge
+    // and reuse its cookies + user-agent so the rest of the page (assets, JS) loads normally.
+    if (this.job.opts.flaresolverrUrl && challenge(await stillBlocked())) {
+      try {
+        this.job.say('Passing challenge through FlareSolverr…');
+        const sol = await this.solveWithFlareSolverr(url);
+        if (sol?.userAgent) await page.setUserAgent(sol.userAgent);
+        const cookies = (sol?.cookies || []).map(c => ({
+          name: c.name, value: c.value, domain: c.domain, path: c.path || '/',
+          expires: typeof c.expiry === 'number' ? c.expiry : -1, httpOnly: !!c.httpOnly, secure: !!c.secure,
+        })).filter(c => c.name && c.domain);
+        if (cookies.length) { await page.setCookie(...cookies); this.job.say(`FlareSolverr returned ${cookies.length} cookie(s) — reloading`); }
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
+        await sleep(1500);
+        if (challenge(await stillBlocked())) this.job.say('Challenge still not cleared after FlareSolverr');
+      } catch (e) { this.job.say('FlareSolverr failed: ' + e.message); }
     }
     // Scroll through the page so lazy images, animations and infinite sections load
     await page.evaluate(async () => {
@@ -149,6 +166,24 @@ export class BrowserSession {
     const title = await page.title().catch(() => '');
     const html = await page.evaluate(freezeAndSerialize);
     return { html, finalUrl: page.url(), block: detectBlockPage(html, title) };
+  }
+
+  // Ask a FlareSolverr instance to fetch the URL (it solves the Cloudflare JS challenge
+  // in its own browser) and return its solution { url, status, cookies, userAgent, response }.
+  async solveWithFlareSolverr(url) {
+    const base = (this.job.opts.flaresolverrUrl || '').replace(/\/$/, '');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 75000);
+    try {
+      const res = await fetch(base + '/v1', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, signal: ctrl.signal,
+        body: JSON.stringify({ cmd: 'request.get', url, maxTimeout: 60000 }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.status !== 'ok' || !data.solution) throw new Error(data.message || 'no solution');
+      return data.solution;
+    } finally { clearTimeout(t); }
   }
 
   async close() { try { await this.browser?.close(); } catch {} }

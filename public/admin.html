@@ -103,6 +103,13 @@ td.u{word-break:break-all}
     </div>
 
     <div class="card">
+      <h3>Cloudflare / anti-bot (optional)</h3>
+      <div class="fields">
+        <div class="f full"><label>FlareSolverr endpoint</label><input type="text" name="flaresolverrUrl" placeholder="http://localhost:8191"><small>Runs a Cloudflare JS-challenge solver. Leave blank to disable. See docker-compose.yml to run it alongside this app. Used automatically when a site shows a "Just a moment" bot-check.</small></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Ads & code</h3>
       <div class="fields">
         <div class="f full"><label>Ad above the tool (HTML)</label><textarea name="adHeader"></textarea></div>

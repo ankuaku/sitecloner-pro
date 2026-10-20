@@ -20,6 +20,7 @@ export const DEFAULTS = {
   fullSiteDepthLimit: 5,      // max crawl depth
   respectRobots: true,        // obey robots.txt
   politenessMs: 300,          // delay between pages during a full-site crawl
+  flaresolverrUrl: '',        // optional FlareSolverr endpoint (e.g. http://localhost:8191) to pass Cloudflare JS challenges
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

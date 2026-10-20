@@ -8,8 +8,31 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let puppeteerMod;
 export async function loadPuppeteer() {
   if (puppeteerMod !== undefined) return puppeteerMod;
-  try { puppeteerMod = (await import('puppeteer')).default; } catch { puppeteerMod = null; }
+  try {
+    // Prefer puppeteer-extra + stealth (harder for sites to detect as a bot)
+    const extra = (await import('puppeteer-extra')).default;
+    const stealth = (await import('puppeteer-extra-plugin-stealth')).default;
+    extra.use(stealth());
+    puppeteerMod = extra;
+  } catch {
+    try { puppeteerMod = (await import('puppeteer')).default; } catch { puppeteerMod = null; }
+  }
   return puppeteerMod;
+}
+
+// Heuristics: is this HTML a bot-challenge / block / error page rather than the real site?
+export function detectBlockPage(html, title = '') {
+  const t = (title || '').toLowerCase();
+  const head = html.slice(0, 4000).toLowerCase();
+  const has = s => head.includes(s) || t.includes(s);
+  if (has('just a moment') || has('checking your browser') || has('cf-browser-verification') || head.includes('cf-challenge') || head.includes('/cdn-cgi/challenge-platform')) return 'Cloudflare bot-check';
+  if (has('attention required') && head.includes('cloudflare')) return 'Cloudflare block';
+  if (has('verifying you are human') || has('verify you are human')) return 'bot verification';
+  if (has('access denied') || has('you have been blocked') || has('request blocked')) return 'access blocked';
+  if (has('enable javascript and cookies to continue')) return 'bot-check';
+  if (/\b(404|not found|page not found|doesn.t exist)\b/.test(t) && html.length < 6000) return 'page not found (404)';
+  if ((has('are you a robot') || has('unusual traffic')) ) return 'bot/CAPTCHA wall';
+  return null;
 }
 
 export class BrowserSession {
@@ -89,6 +112,15 @@ export class BrowserSession {
       if (!/timeout/i.test(e.message)) throw e;
       this.job.say('Page kept loading — continuing with what is on screen');
     }
+    // If a Cloudflare-style interstitial is showing, give it time to clear itself.
+    for (let tries = 0; tries < 6; tries++) {
+      let block;
+      try { block = detectBlockPage(await page.content(), await page.title()); } catch { break; }
+      if (!block || !/cloudflare|bot-check|verification|human/i.test(block)) break;
+      if (tries === 0) this.job.say('Site shows a bot-check — waiting for it to clear…');
+      await page.waitForNavigation({ timeout: 8000, waitUntil: 'networkidle2' }).catch(() => {});
+      await sleep(2500);
+    }
     // Scroll through the page so lazy images, animations and infinite sections load
     await page.evaluate(async () => {
       const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -114,8 +146,9 @@ export class BrowserSession {
       try { await document.fonts.ready; } catch {}
     }).catch(() => {});
     await sleep(400);
+    const title = await page.title().catch(() => '');
     const html = await page.evaluate(freezeAndSerialize);
-    return { html, finalUrl: page.url() };
+    return { html, finalUrl: page.url(), block: detectBlockPage(html, title) };
   }
 
   async close() { try { await this.browser?.close(); } catch {} }

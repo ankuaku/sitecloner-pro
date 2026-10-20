@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 import * as cheerio from 'cheerio';
 import { ZipArchive } from 'archiver';
 import { assertPublicUrl } from './guard.js';
-import { BrowserSession, loadPuppeteer } from './browser.js';
+import { BrowserSession, loadPuppeteer, detectBlockPage } from './browser.js';
 import { buildMirror } from './mirror.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -391,7 +391,8 @@ export class CloneJob {
     if (this.session) return { ...(await this.session.render(pageUrl)), rendered: true };
     const r = await this.fetchUrl(pageUrl, 15 * 1024 * 1024);
     if (!r.type.includes('html') && r.type) throw new Error(`Not an HTML page (${r.type})`);
-    return { html: r.buf.toString('utf8'), finalUrl: r.finalUrl, rendered: false };
+    const html = r.buf.toString('utf8');
+    return { html, finalUrl: r.finalUrl, rendered: false, block: detectBlockPage(html) };
   }
 
   async run() {
@@ -429,14 +430,19 @@ export class CloneJob {
         this.progress.queued = this.queue.length;
         this.say(`[${this.progress.pages + 1}] Loading: ${pageUrl}${this.queue.length ? `  (+${this.queue.length} queued)` : ''}`);
         try {
-          const { html, finalUrl, rendered } = await this.loadPage(pageUrl);
+          const { html, finalUrl, rendered, block } = await this.loadPage(pageUrl);
+          if (block && done.size === 1) {
+            // Start page is a bot-check / block / 404 — refuse rather than hand over a fake clone.
+            throw new Error(`This site is protected (${block}) and did not return its real content. Sites behind Cloudflare, login walls or strong bot protection cannot be cloned.`);
+          }
+          if (block) this.say(`Skipped (protected: ${block}): ${pageUrl}`);
           this.discover(html, finalUrl, depth);
-          if (this.wantStatic) {
+          if (this.wantStatic && !block) {
             const out = await this.processPage(html, finalUrl, rendered);
             await fsp.mkdir(this.staticDir, { recursive: true });
             await fsp.writeFile(path.join(this.staticDir, file), out);
           }
-          this.progress.pages++;
+          if (!block) this.progress.pages++; else this.progress.failed++;
         } catch (e) {
           if (done.size === 1) throw e;
           this.say(`Page failed: ${pageUrl} (${e.message})`);

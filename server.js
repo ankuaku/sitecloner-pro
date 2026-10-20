@@ -65,13 +65,17 @@ setInterval(() => {
 }, 60000).unref();
 
 // ---------------- pages ----------------
+// Changes on every restart (i.e. every deploy), so browsers always fetch fresh CSS/JS.
+const BUILD = Date.now().toString(36);
 function sendPage(file) {
   return (req, res) => {
     const s = getSettings();
     let html = fs.readFileSync(path.join(PUBLIC, file), 'utf8');
     html = html.replace('<!--HEAD_CODE-->', s.headCode || '')
       .replaceAll('{{SITE_NAME}}', escapeHtml(s.siteName))
-      .replaceAll('{{PRIMARY}}', /^#[0-9a-f]{3,8}$/i.test(s.primaryColor) ? s.primaryColor : '#5b5bf0');
+      .replaceAll('{{PRIMARY}}', /^#[0-9a-f]{3,8}$/i.test(s.primaryColor) ? s.primaryColor : '#5b5bf0')
+      .replace(/(\/static\/(?:app\.js|style\.css))/g, `$1?v=${BUILD}`);
+    res.set('Cache-Control', 'no-cache');
     res.type('html').send(html);
   };
 }

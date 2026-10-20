@@ -25,6 +25,10 @@ export class BrowserSession {
     if (!puppeteer) throw new Error('Browser engine not installed (npm i puppeteer)');
     const args = ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--hide-scrollbars', '--mute-audio'];
     if (process.env.BROWSER_PROXY) args.push(`--proxy-server=${process.env.BROWSER_PROXY}`);
+    // LOW_MEMORY=true — for 512 MB hosts (Render free/starter): one process, small JS heap
+    if (process.env.LOW_MEMORY === 'true') args.push('--renderer-process-limit=1', '--disable-dev-shm-usage',
+      '--disable-extensions', '--disable-background-networking', '--disable-features=site-per-process,Translate,MediaRouter',
+      '--js-flags=--max-old-space-size=192');
     this.browser = await puppeteer.launch({
       headless: true, args,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -32,6 +36,7 @@ export class BrowserSession {
     const page = this.page = await this.browser.newPage();
     await page.setUserAgent(UA);
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+    page.setDefaultTimeout(process.env.LOW_MEMORY === 'true' ? 90000 : 30000);
     await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
     // Keep the site from registering its own service worker
     await page.evaluateOnNewDocument(() => {
@@ -79,7 +84,7 @@ export class BrowserSession {
     await assertPublicUrl(url);
     const page = this.page;
     try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: process.env.LOW_MEMORY === 'true' ? 90000 : 45000 });
     } catch (e) {
       if (!/timeout/i.test(e.message)) throw e;
       this.job.say('Page kept loading — continuing with what is on screen');

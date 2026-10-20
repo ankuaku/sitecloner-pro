@@ -110,39 +110,63 @@
   $('tabChat') && ($('tabChat').onclick = () => setAiMode('chat'));
   if ($('aiBox')) setAiMode('edit');
 
-  // AI chat
-  let chatMsgs = [];
+  // AI chat — developer assistant: attach code, ask, fix errors, copy fixes fast
+  let chatMsgs = [], chatFiles = [];
   const esc2 = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  function renderChips() {
+    $('chatChips').innerHTML = chatFiles.map((f, i) =>
+      `<span style="background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12.5px;display:inline-flex;gap:6px;align-items:center">📄 ${esc2(f.name)} <b data-rm="${i}" style="cursor:pointer;color:var(--muted)">✕</b></span>`).join('');
+    $('chatChips').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { chatFiles.splice(+b.dataset.rm, 1); renderChips(); });
+  }
   function renderChat() {
-    if (!chatMsgs.length) { $('chatMsgs').innerHTML = '<div style="color:var(--muted)">Ask anything about your code, paste an error, or request a fix. The AI replies here.</div>'; return; }
+    if (!chatMsgs.length) { $('chatMsgs').innerHTML = '<div style="color:var(--muted)">Talk to the AI about your code — paste or attach a file, describe an error, ask a question, or request a change. Fixes come back with a one-click Copy.</div>'; return; }
     $('chatMsgs').innerHTML = chatMsgs.map(m => {
       const who = m.role === 'user' ? 'You' : 'AI';
-      const body = esc2(m.content).replace(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g, (_, l, c) => `<pre style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;margin:6px 0"><code>${c}</code></pre>`);
+      const body = esc2(m.display != null ? m.display : m.content).replace(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g,
+        (_, l, c) => `<div style="position:relative;margin:6px 0"><button class="chat-copy" style="position:absolute;top:6px;right:6px;font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer">Copy</button><pre style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;padding-top:28px;overflow:auto;margin:0"><code>${c}</code></pre></div>`);
       return `<div><b style="color:${m.role === 'user' ? 'var(--text)' : 'var(--primary)'}">${who}</b><div style="white-space:pre-wrap;word-break:break-word;margin-top:2px">${body}</div></div>`;
     }).join('');
+    $('chatMsgs').querySelectorAll('.chat-copy').forEach(btn => btn.onclick = () => {
+      const code = btn.parentElement.querySelector('code').textContent;
+      navigator.clipboard?.writeText(code).then(() => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1500); });
+    });
     $('chatMsgs').scrollTop = 1e6;
   }
-  $('chatNew') && ($('chatNew').onclick = () => { chatMsgs = []; renderChat(); });
+  $('chatNew') && ($('chatNew').onclick = () => { chatMsgs = []; chatFiles = []; renderChips(); renderChat(); });
+  $('chatAttach') && ($('chatAttach').onclick = () => $('chatFile').click());
+  $('chatFile') && ($('chatFile').onchange = async () => {
+    for (const f of $('chatFile').files) {
+      if (f.size > 80000) { aiErr(`${f.name} is larger than ~80 KB — attach a smaller file.`); continue; }
+      try { chatFiles.push({ name: f.name, content: await f.text() }); } catch {}
+    }
+    $('chatFile').value = ''; renderChips();
+  });
   async function sendChat() {
     const text = $('chatInput').value.trim();
-    if (!text) return;
+    if (!text && !chatFiles.length) return;
     $('aiAlert').classList.remove('show');
-    chatMsgs.push({ role: 'user', content: text }); $('chatInput').value = '';
-    chatMsgs.push({ role: 'assistant', content: '…' }); renderChat();
-    $('chatSend').disabled = true;
+    const ctx = chatFiles.map(f => `FILE ${f.name}:\n\`\`\`\n${f.content}\n\`\`\``).join('\n\n');
+    const content = ctx ? (ctx + '\n\n' + text) : text;
+    const display = (chatFiles.length ? `📄 ${chatFiles.map(f => f.name).join(', ')}\n` : '') + text;
+    chatMsgs.push({ role: 'user', content, display });
+    chatFiles = []; renderChips(); $('chatInput').value = '';
+    chatMsgs.push({ role: 'assistant', content: '…', display: '…' }); renderChat();
+    $('chatSend').disabled = true; $('chatSend').textContent = '…';
     try {
       const r = await fetch('/api/ai-chat', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: chatMsgs.filter(m => m.content !== '…') }) });
+        body: JSON.stringify({ messages: chatMsgs.filter(m => m.content !== '…').map(m => ({ role: m.role, content: m.content })) }) });
       const d = await r.json();
-      chatMsgs.pop(); // remove the placeholder
-      if (!r.ok) { aiErr(d.error || 'Chat failed.'); }
+      chatMsgs.pop();
+      if (!r.ok) aiErr(d.error || 'Chat failed.');
       else chatMsgs.push({ role: 'assistant', content: d.reply });
       renderChat();
     } catch { chatMsgs.pop(); aiErr('Network error.'); renderChat(); }
-    $('chatSend').disabled = false;
+    $('chatSend').disabled = false; $('chatSend').textContent = 'Send';
   }
   $('chatSend') && ($('chatSend').onclick = sendChat);
-  $('chatInput') && ($('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); } }));
+  $('chatInput') && ($('chatInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  }));
 
   $('aiGo') && ($('aiGo').onclick = async () => {
     $('aiAlert').classList.remove('show');

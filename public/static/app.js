@@ -58,7 +58,21 @@
     if (!c.fullSite) $('crawl').querySelector('[value=full]').disabled = true;
     injectHtml($('adHeader'), c.adHeader);
     injectHtml($('adFooter'), c.adFooter);
+    if (c.publishAny) fetch('/api/admin/me').then(r => r.json()).then(m => { isAdmin = !!m.admin; }).catch(() => {});
   });
+
+  let isAdmin = false, lastCloneId = null;
+  $('publish').onclick = async () => {
+    if (!lastCloneId) return;
+    $('publish').disabled = true; $('publish').textContent = 'Publishing…';
+    try {
+      const r = await fetch('/api/clone/' + lastCloneId + '/publish', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) { showError(d.error || 'Could not publish.'); }
+      else { $('published').style.display = ''; $('publishedLink').textContent = d.url; $('publishedLink').href = d.url; $('publish').style.display = 'none'; }
+    } catch { showError('Network error while publishing.'); }
+    $('publish').disabled = false; $('publish').textContent = 'Publish as website';
+  };
 
   function syncOutput() {
     const fast = $('engine').value === 'fast';
@@ -142,6 +156,9 @@
           $('dl').href = '/api/clone/' + id + '/download';
           if (j.canPreview) { $('preview').style.display = ''; $('preview').href = '/api/clone/' + id + '/preview/'; }
           else $('preview').style.display = 'none';
+          lastCloneId = id;
+          $('published').style.display = 'none';
+          $('publish').style.display = (j.canPreview && (cfg.publish || isAdmin)) ? '' : 'none';
           addHistory({ id, url: $('url').value.trim() || j.url, time: Date.now(), engine: j.engine, crawl: j.crawl, canPreview: j.canPreview });
         } else {
           $('msg').className = 'msg err';

@@ -18,7 +18,13 @@ const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('he
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2);
 const WORK = path.resolve('downloads');
 const PUBLIC = path.resolve('public');
+const PUB = path.resolve('data/published');       // published websites live here (needs a persistent disk)
+const PUB_INDEX = path.resolve('data/published.json');
 fs.mkdirSync(WORK, { recursive: true });
+fs.mkdirSync(PUB, { recursive: true });
+
+const readPublished = () => { try { return JSON.parse(fs.readFileSync(PUB_INDEX, 'utf8')); } catch { return []; } };
+const writePublished = list => { try { fs.writeFileSync(PUB_INDEX, JSON.stringify(list, null, 2)); } catch {} };
 
 if (ADMIN_PASSWORD === 'admin123') console.warn('⚠  Using default admin password. Set ADMIN_PASSWORD in .env before going live.');
 
@@ -93,6 +99,8 @@ app.get('/api/config', (req, res) => {
     maxPagesLimit: s.maxPagesLimit, browser: s.allowRender && browserInstalled, maintenance: s.maintenance,
     fullSite: s.allowFullSite,
     fullSitePagesLimit: s.fullSitePagesLimit, fullSiteDepthLimit: s.fullSiteDepthLimit,
+    publish: s.allowPublish && !s.publishAdminOnly,  // visitor-facing publish button
+    publishAny: s.allowPublish,
     adHeader: s.adHeader, adFooter: s.adFooter, footerText: s.footerText, termsText: s.termsText,
   });
 });
@@ -197,6 +205,45 @@ app.get(/^\/api\/clone\/([a-f0-9]+)\/preview(\/.*)?$/, (req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 
+// ---------------- publish (self-hosted static hosting) ----------------
+const publicBase = req => `${req.protocol}://${req.get('host')}`;
+
+app.post('/api/clone/:id/publish', (req, res) => {
+  const s = getSettings();
+  if (!s.allowPublish) return res.status(403).json({ error: 'Publishing is disabled.' });
+  if (s.publishAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can publish here.' });
+  const id = req.params.id;
+  if (!/^[a-f0-9]+$/.test(id)) return res.status(400).json({ error: 'Bad id.' });
+  const job = jobs.get(id);
+  const dir = (job && job.status === 'done' && job.wantStatic) ? job.staticDir : staticDirFor(id);
+  if (!dir || !fs.existsSync(dir)) return res.status(404).json({ error: 'Clone not found or expired — clone again, then publish.' });
+  const slug = crypto.randomBytes(5).toString('hex');
+  const dest = path.join(PUB, slug);
+  try {
+    fs.cpSync(dir, dest, { recursive: true });
+  } catch (e) { return res.status(500).json({ error: 'Could not publish: ' + e.message }); }
+  const list = readPublished();
+  list.unshift({ slug, source: job?.url || '', at: new Date().toISOString(), ip: req.ip });
+  writePublished(list);
+  res.json({ url: `${publicBase(req)}/s/${slug}/`, slug });
+});
+
+// Serve published sites at /s/<slug>/...
+app.get(/^\/s\/([a-z0-9]+)(\/.*)?$/, (req, res) => {
+  const slug = req.params[0];
+  const root = path.resolve(PUB, slug);
+  if (root !== path.resolve(PUB, slug) || !root.startsWith(PUB + path.sep) || !fs.existsSync(root)) return res.status(404).send('Site not found.');
+  if (!req.params[1]) return res.redirect(301, `/s/${slug}/`);
+  let rel = decodeURIComponent(req.params[1].split('?')[0]);
+  let file = path.resolve(root, '.' + rel);
+  if (file !== root && !file.startsWith(root + path.sep)) return res.status(403).send('Forbidden');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
+  if (!fs.existsSync(file)) return res.status(404).send('Not found.');
+  res.set('Content-Type', PREVIEW_TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+  res.set('Cache-Control', 'public, max-age=300');
+  fs.createReadStream(file).pipe(res);
+});
+
 // ---------------- admin ----------------
 const adminToken = () => crypto.createHmac('sha256', SECRET).update('admin:' + ADMIN_PASSWORD).digest('hex');
 function isAdmin(req) {
@@ -218,7 +265,17 @@ app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req) }));
 app.get('/api/admin/settings', requireAdmin, (req, res) => res.json(getSettings()));
 app.post('/api/admin/settings', requireAdmin, (req, res) => res.json(updateSettings(req.body || {})));
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
-  res.json({ ...getStats(), running, queued: waiting.length, activeJobs: jobs.size, puppeteerInstalled: browserInstalled, version: '1.1.0' });
+  res.json({ ...getStats(), running, queued: waiting.length, activeJobs: jobs.size, puppeteerInstalled: browserInstalled, version: '1.2.0' });
+});
+app.get('/api/admin/published', requireAdmin, (req, res) => {
+  res.json(readPublished().map(p => ({ ...p, url: `${publicBase(req)}/s/${p.slug}/` })));
+});
+app.post('/api/admin/published/delete', requireAdmin, (req, res) => {
+  const slug = String(req.body?.slug || '');
+  if (!/^[a-z0-9]+$/.test(slug)) return res.status(400).json({ error: 'Bad slug.' });
+  fs.rm(path.join(PUB, slug), { recursive: true, force: true }, () => {});
+  writePublished(readPublished().filter(p => p.slug !== slug));
+  res.json({ ok: true });
 });
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

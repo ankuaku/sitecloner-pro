@@ -21,6 +21,8 @@ export const DEFAULTS = {
   respectRobots: true,        // obey robots.txt
   politenessMs: 300,          // delay between pages during a full-site crawl
   flaresolverrUrl: '',        // optional FlareSolverr endpoint (e.g. http://localhost:8191) to pass Cloudflare JS challenges
+  allowPublish: false,        // let a finished clone be published as a live website on this server (/s/<id>)
+  publishAdminOnly: true,     // only the admin can publish (safer); off = any visitor who cloned can publish
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

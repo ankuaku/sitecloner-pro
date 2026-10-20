@@ -110,6 +110,15 @@ td.u{word-break:break-all}
     </div>
 
     <div class="card">
+      <h3>Publishing (host clones on this server)</h3>
+      <div class="fields">
+        <div class="f full check"><input type="checkbox" name="allowPublish" id="allowPublish"><label for="allowPublish" style="margin:0;color:var(--text)">Enable publishing — a clone can go live at <code>/s/&lt;id&gt;</code> on this server</label></div>
+        <div class="f full check"><input type="checkbox" name="publishAdminOnly" id="publishAdminOnly"><label for="publishAdminOnly" style="margin:0;color:var(--text)">Only the admin can publish (recommended)</label></div>
+        <div class="f full"><small>Needs a persistent disk (a VPS or the Docker volume), not the free Render plan. You are responsible for what gets hosted — remove anything abusive below.</small></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Ads & code</h3>
       <div class="fields">
         <div class="f full"><label>Ad above the tool (HTML)</label><textarea name="adHeader"></textarea></div>
@@ -119,6 +128,11 @@ td.u{word-break:break-all}
     </div>
     <button class="btn" type="submit">Save settings</button><span class="saved" id="saved">Saved ✓</span>
   </form>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Published sites</h3>
+    <table><thead><tr><th>Published</th><th>Live URL</th><th>Source</th><th></th></tr></thead><tbody id="published"></tbody></table>
+  </div>
 
   <div class="card" style="margin-top:18px">
     <h3>Recent clones</h3>
@@ -141,6 +155,22 @@ async function init() {
     if (el.type === 'checkbox') el.checked = !!s[el.name]; else el.value = s[el.name];
   }
   loadStats(); setInterval(loadStats, 10000);
+  loadPublished();
+}
+
+async function loadPublished() {
+  let list = [];
+  try { list = await (await fetch('/api/admin/published')).json(); } catch { return; }
+  $('published').innerHTML = list.map(p => `<tr><td>${esc(new Date(p.at).toLocaleString())}</td>
+    <td class="u"><a href="${esc(p.url)}" target="_blank" style="color:var(--primary)">${esc(p.url)}</a></td>
+    <td class="u">${esc(p.source || '-')}</td>
+    <td><button class="btn ghost" style="min-height:32px;padding:0 12px" data-slug="${esc(p.slug)}">Delete</button></td></tr>`).join('')
+    || '<tr><td colspan="4" style="color:var(--muted)">Nothing published yet</td></tr>';
+  $('published').querySelectorAll('button[data-slug]').forEach(b => b.onclick = async () => {
+    if (!confirm('Delete this published site? The live link will stop working.')) return;
+    await fetch('/api/admin/published/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: b.dataset.slug }) });
+    loadPublished();
+  });
 }
 
 async function loadStats() {

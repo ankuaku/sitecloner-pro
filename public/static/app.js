@@ -2,6 +2,27 @@
   const $ = id => document.getElementById(id);
   let cfg = {}, poll = null;
 
+  // --- recent clones, saved in this browser only ---
+  const HKEY = 'sc_recent';
+  const loadHistory = () => { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch { return []; } };
+  const saveHistory = h => { try { localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 10))); } catch {} };
+  function addHistory(item) {
+    const h = loadHistory().filter(x => x.id !== item.id);
+    h.unshift(item); saveHistory(h); renderHistory();
+  }
+  const ago = t => { const s = (Date.now() - t) / 1000; if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago'; return Math.floor(s / 86400) + ' d ago'; };
+  function renderHistory() {
+    const h = loadHistory();
+    if (!h.length) { $('recentWrap').style.display = 'none'; return; }
+    $('recentWrap').style.display = '';
+    $('recentList').innerHTML = h.map(x => `<div class="feat" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
+      <div style="min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.url)}</div>
+      <div style="color:var(--muted);font-size:13px">${esc(ago(x.time))} · ${esc(x.engine || 'browser')}${x.crawl === 'full' ? ' · whole site' : ''}</div></div>
+      <span style="display:flex;gap:8px;flex-shrink:0">${x.canPreview ? `<a class="btn ghost" style="min-height:38px;padding:0 14px" target="_blank" rel="noopener" href="/api/clone/${x.id}/preview/">Preview</a>` : ''}
+      <a class="btn" style="min-height:38px;padding:0 14px" href="/api/clone/${x.id}/download">Download</a></span></div>`).join('');
+  }
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
   // Inserts admin-provided HTML and re-creates <script> tags so ad code runs.
   function injectHtml(el, html) {
     if (!html) return;
@@ -121,6 +142,7 @@
           $('dl').href = '/api/clone/' + id + '/download';
           if (j.canPreview) { $('preview').style.display = ''; $('preview').href = '/api/clone/' + id + '/preview/'; }
           else $('preview').style.display = 'none';
+          addHistory({ id, url: $('url').value.trim() || j.url, time: Date.now(), engine: j.engine, crawl: j.crawl, canPreview: j.canPreview });
         } else {
           $('msg').className = 'msg err';
           $('msg').textContent = 'Failed: ' + j.error;
@@ -130,4 +152,6 @@
       }
     }, 1000);
   }
+
+  renderHistory();
 })();

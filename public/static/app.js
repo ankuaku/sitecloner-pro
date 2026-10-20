@@ -58,8 +58,35 @@
     if (!c.fullSite) $('crawl').querySelector('[value=full]').disabled = true;
     injectHtml($('adHeader'), c.adHeader);
     injectHtml($('adFooter'), c.adFooter);
-    if (c.publishAny) fetch('/api/admin/me').then(r => r.json()).then(m => { isAdmin = !!m.admin; }).catch(() => {});
+    const showPublishUI = () => { if (cfg.publish || isAdmin) $('uploadBox').style.display = ''; };
+    if (c.publish) showPublishUI();
+    if (c.publishAny) fetch('/api/admin/me').then(r => r.json()).then(m => { isAdmin = !!m.admin; showPublishUI(); }).catch(() => {});
   });
+
+  // Upload a ZIP and publish it
+  const bindZip = () => {
+    if (!$('zipGo')) return;
+    $('zipGo').onclick = async () => {
+      const f = $('zipFile').files[0];
+      $('zipAlert').classList.remove('show'); $('zipResult').style.display = 'none';
+      if (!f) { $('zipAlert').textContent = 'Please choose a ZIP file.'; $('zipAlert').classList.add('show'); return; }
+      const max = (cfg.maxZipMb || 50) * 1048576;
+      if (f.size > max) { $('zipAlert').textContent = `File is larger than ${cfg.maxZipMb} MB.`; $('zipAlert').classList.add('show'); return; }
+      $('zipGo').disabled = true; $('zipGo').textContent = 'Uploading…';
+      try {
+        const fd = new FormData(); fd.append('zip', f);
+        const r = await fetch('/api/publish-zip', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) { $('zipAlert').textContent = d.error || 'Upload failed.'; $('zipAlert').classList.add('show'); }
+        else {
+          $('zipResult').style.display = ''; $('zipLink').textContent = d.url; $('zipLink').href = d.url;
+          if (!d.index) { $('zipAlert').textContent = 'Published, but no index.html found — the site may not open at the root.'; $('zipAlert').classList.add('show'); }
+        }
+      } catch { $('zipAlert').textContent = 'Network error.'; $('zipAlert').classList.add('show'); }
+      $('zipGo').disabled = false; $('zipGo').textContent = 'Upload & publish';
+    };
+  };
+  bindZip();
 
   let isAdmin = false, lastCloneId = null;
   $('publish').onclick = async () => {

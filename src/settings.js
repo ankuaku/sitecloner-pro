@@ -23,6 +23,7 @@ export const DEFAULTS = {
   flaresolverrUrl: '',        // optional FlareSolverr endpoint (e.g. http://localhost:8191) to pass Cloudflare JS challenges
   allowPublish: false,        // let a finished clone be published as a live website on this server (/s/<id>)
   publishAdminOnly: true,     // only the admin can publish (safer); off = any visitor who cloned can publish
+  maxZipMb: 50,               // max upload size for "publish a ZIP" (Netlify-style)
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

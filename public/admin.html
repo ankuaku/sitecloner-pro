@@ -113,8 +113,9 @@ td.u{word-break:break-all}
       <h3>Publishing (host clones on this server)</h3>
       <div class="fields">
         <div class="f full check"><input type="checkbox" name="allowPublish" id="allowPublish"><label for="allowPublish" style="margin:0;color:var(--text)">Enable publishing — a clone can go live at <code>/s/&lt;id&gt;</code> on this server</label></div>
-        <div class="f full check"><input type="checkbox" name="publishAdminOnly" id="publishAdminOnly"><label for="publishAdminOnly" style="margin:0;color:var(--text)">Only the admin can publish (recommended)</label></div>
-        <div class="f full"><small>Needs a persistent disk (a VPS or the Docker volume), not the free Render plan. You are responsible for what gets hosted — remove anything abusive below.</small></div>
+        <div class="f full check"><input type="checkbox" name="publishAdminOnly" id="publishAdminOnly"><label for="publishAdminOnly" style="margin:0;color:var(--text)">Only the admin can publish (recommended) — applies to both cloned sites and uploaded ZIPs</label></div>
+        <div class="f"><label>Max upload ZIP size (MB)</label><input type="number" name="maxZipMb" min="1" max="500"></div>
+        <div class="f full"><small>Visitors can also upload a ZIP of a static site to get a live link (Netlify-style). Needs a persistent disk (a VPS or the Docker volume), not the free Render plan. You are responsible for what gets hosted — remove anything abusive below.</small></div>
       </div>
     </div>
 

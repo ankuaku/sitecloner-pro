@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import multer from 'multer';
+import AdmZip from 'adm-zip';
 import { CloneJob } from './src/cloner.js';
 import { getSettings, getStats, updateSettings, recordClone } from './src/settings.js';
 import { loadPuppeteer } from './src/browser.js';
@@ -100,7 +102,7 @@ app.get('/api/config', (req, res) => {
     fullSite: s.allowFullSite,
     fullSitePagesLimit: s.fullSitePagesLimit, fullSiteDepthLimit: s.fullSiteDepthLimit,
     publish: s.allowPublish && !s.publishAdminOnly,  // visitor-facing publish button
-    publishAny: s.allowPublish,
+    publishAny: s.allowPublish, maxZipMb: s.maxZipMb,
     adHeader: s.adHeader, adFooter: s.adFooter, footerText: s.footerText, termsText: s.termsText,
   });
 });
@@ -226,6 +228,62 @@ app.post('/api/clone/:id/publish', (req, res) => {
   list.unshift({ slug, source: job?.url || '', at: new Date().toISOString(), ip: req.ip });
   writePublished(list);
   res.json({ url: `${publicBase(req)}/s/${slug}/`, slug });
+});
+
+// Upload a ZIP of a static site and publish it (Netlify-style).
+const uploadZip = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024, files: 1 },
+}).single('zip');
+
+app.post('/api/publish-zip', (req, res) => {
+  const s = getSettings();
+  if (!s.allowPublish) return res.status(403).json({ error: 'Publishing is disabled.' });
+  if (s.publishAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can publish here.' });
+  uploadZip(req, res, err => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'ZIP is too large.' : 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ error: 'Please choose a ZIP file.' });
+    if (req.file.size > s.maxZipMb * 1024 * 1024) return res.status(400).json({ error: `ZIP is larger than the ${s.maxZipMb} MB limit.` });
+    let zip;
+    try { zip = new AdmZip(req.file.buffer); } catch { return res.status(400).json({ error: 'That is not a valid ZIP file.' }); }
+    const entries = zip.getEntries().filter(e => !e.isDirectory);
+    if (!entries.length) return res.status(400).json({ error: 'The ZIP is empty.' });
+    if (entries.length > 8000) return res.status(400).json({ error: 'Too many files in the ZIP (max 8000).' });
+    const total = entries.reduce((n, e) => n + (e.header.size || 0), 0);
+    if (total > s.maxZipMb * 4 * 1024 * 1024) return res.status(400).json({ error: 'The ZIP expands to too much data.' });
+
+    // If every file sits under one top folder, strip it so index.html lands at the root.
+    const tops = new Set(entries.map(e => e.entryName.replace(/\\/g, '/').split('/')[0]));
+    const strip = tops.size === 1 && entries.every(e => e.entryName.replace(/\\/g, '/').includes('/')) ? [...tops][0] + '/' : '';
+
+    const slug = crypto.randomBytes(5).toString('hex');
+    const dest = path.join(PUB, slug);
+    let written = 0, hasIndex = false;
+    try {
+      for (const e of entries) {
+        let name = e.entryName.replace(/\\/g, '/');
+        if (strip && name.startsWith(strip)) name = name.slice(strip.length);
+        if (!name || name.startsWith('/') || name.includes('..') || /^[a-zA-Z]:/.test(name)) continue; // skip unsafe paths
+        if (/(^|\/)(__MACOSX|\.DS_Store|\.git)(\/|$)/.test(name)) continue;
+        const out = path.resolve(dest, name);
+        if (out !== dest && !out.startsWith(dest + path.sep)) continue;
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        fs.writeFileSync(out, e.getData());
+        written++;
+        if (name.toLowerCase() === 'index.html') hasIndex = true;
+      }
+    } catch (e) { fs.rmSync(dest, { recursive: true, force: true }); return res.status(500).json({ error: 'Could not extract the ZIP.' }); }
+    if (!written) { fs.rmSync(dest, { recursive: true, force: true }); return res.status(400).json({ error: 'No usable files found in the ZIP.' }); }
+    // If there is no index.html but a single HTML file, use it as the entry page.
+    if (!hasIndex) {
+      const htmls = entries.map(e => (strip && e.entryName.startsWith(strip) ? e.entryName.slice(strip.length) : e.entryName)).filter(n => /\.html?$/i.test(n) && !n.includes('/'));
+      if (htmls.length === 1) { try { fs.copyFileSync(path.join(dest, htmls[0]), path.join(dest, 'index.html')); hasIndex = true; } catch {} }
+    }
+    const list = readPublished();
+    list.unshift({ slug, source: '(uploaded ZIP: ' + req.file.originalname.slice(0, 80) + ')', at: new Date().toISOString(), ip: req.ip });
+    writePublished(list);
+    res.json({ url: `${publicBase(req)}/s/${slug}/`, slug, files: written, index: hasIndex });
+  });
 });
 
 // Serve published sites at /s/<slug>/...

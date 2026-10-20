@@ -79,6 +79,17 @@
     </div>
   </form>
 
+  <div class="tool" id="uploadBox" style="display:none;max-width:780px;margin-top:16px">
+    <h3 style="margin:0 0 6px;font-size:16px">Or upload a ZIP to host</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Upload a ZIP of a static website (with an <code>index.html</code>) and get a live link — like Netlify drop.</p>
+    <div class="urlrow">
+      <input id="zipFile" type="file" accept=".zip" style="flex:1;min-width:0;font:inherit;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg2);color:var(--text)">
+      <button class="btn" type="button" id="zipGo">Upload &amp; publish</button>
+    </div>
+    <div class="alert" id="zipAlert"></div>
+    <div id="zipResult" style="display:none;margin-top:12px;font-size:14px"><span class="msg ok">Live at:</span> <a id="zipLink" href="#" target="_blank" rel="noopener" style="color:var(--primary)"></a></div>
+  </div>
+
   <section id="recentWrap" style="display:none;margin-top:28px">
     <h2 style="font-size:20px;margin:0 0 14px;text-align:left">Your recent clones</h2>
     <div id="recentList" class="grid" style="grid-template-columns:1fr"></div>

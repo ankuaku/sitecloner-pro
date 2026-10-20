@@ -9,12 +9,17 @@ export const DEFAULTS = {
   tagline: 'Paste a URL and get the complete frontend — exact UI, every asset, working offline.',
   primaryColor: '#5b5bf0',
   logoText: 'SC',
-  maxPagesLimit: 10,          // highest "pages" value a visitor can choose
-  maxSizeMb: 120,              // max total download per clone
-  maxAssets: 600,
-  timeoutSec: 180,
+  maxPagesLimit: 10,          // highest "pages" value a visitor can choose (single mode)
+  maxSizeMb: 300,              // max total download per clone
+  maxAssets: 1200,
+  timeoutSec: 600,             // max time for one clone (full-site needs more)
   clonesPerHour: 10,          // per IP
   allowRender: true,          // real-browser engine (needs puppeteer)
+  allowFullSite: true,        // offer "Whole site" crawl
+  fullSitePagesLimit: 200,    // hard cap on pages a visitor can crawl in full-site mode
+  fullSiteDepthLimit: 5,      // max crawl depth
+  respectRobots: true,        // obey robots.txt
+  politenessMs: 300,          // delay between pages during a full-site crawl
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

@@ -31,6 +31,10 @@
     [1, 3, 5, 10, 20, 50].filter(n => n <= c.maxPagesLimit).concat(c.maxPagesLimit)
       .filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b)
       .forEach(n => sel.add(new Option(n === 1 ? '1 (this page)' : String(n), n)));
+    const dsel = $('depth');
+    for (let d = 1; d <= (c.fullSiteDepthLimit || 5); d++) dsel.add(new Option(d === 1 ? '1 level' : d + ' levels', d));
+    dsel.value = Math.min(3, c.fullSiteDepthLimit || 3);
+    if (!c.fullSite) $('crawl').querySelector('[value=full]').disabled = true;
     injectHtml($('adHeader'), c.adHeader);
     injectHtml($('adFooter'), c.adFooter);
   });
@@ -40,8 +44,15 @@
     $('output').querySelectorAll('[value=both],[value=interactive]').forEach(o => o.disabled = fast);
     if (fast) $('output').value = 'static';
     else if ($('output').value === 'static' && !$('output').dataset.touched) $('output').value = 'both';
+    syncScope();
+  }
+  function syncScope() {
+    const full = $('crawl').value === 'full';
+    $('pagesWrap').hidden = full;
+    $('depthWrap').hidden = !full;
   }
   $('engine').onchange = syncOutput;
+  $('crawl').onchange = syncScope;
   $('output').onchange = () => { $('output').dataset.touched = 1; };
 
   const fmt = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
@@ -73,7 +84,8 @@
       const r = await fetch('/api/clone', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url, pages: Number($('pages').value), engine: $('engine').value,
-          output: $('output').value, includeMedia: $('includeMedia').checked, agree: true }),
+          crawl: $('crawl').value, depth: Number($('depth').value), output: $('output').value,
+          includeMedia: $('includeMedia').checked, agree: true }),
       });
       const d = await r.json();
       if (!r.ok) { reset(); return showError(d.error || 'Something went wrong.'); }
@@ -91,6 +103,7 @@
       $('cAssets').textContent = j.progress.assets;
       $('cSize').textContent = fmt(j.progress.bytes);
       $('cFailed').textContent = j.progress.failed;
+      if (j.crawl === 'full') { $('cQueuedWrap').hidden = false; $('cQueued').textContent = j.progress.queued || 0; }
       $('log').textContent = j.log.join('\n');
       $('log').scrollTop = 1e6;
       if (j.status === 'done' || j.status === 'error') {

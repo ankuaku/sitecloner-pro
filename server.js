@@ -86,6 +86,8 @@ app.get('/api/config', (req, res) => {
   res.json({
     siteName: s.siteName, tagline: s.tagline, primaryColor: s.primaryColor, logoText: s.logoText,
     maxPagesLimit: s.maxPagesLimit, browser: s.allowRender && browserInstalled, maintenance: s.maintenance,
+    fullSite: s.allowFullSite,
+    fullSitePagesLimit: s.fullSitePagesLimit, fullSiteDepthLimit: s.fullSiteDepthLimit,
     adHeader: s.adHeader, adFooter: s.adFooter, footerText: s.footerText, termsText: s.termsText,
   });
 });
@@ -101,7 +103,7 @@ const cloneLimiter = rateLimit({
 app.post('/api/clone', cloneLimiter, (req, res) => {
   const s = getSettings();
   if (s.maintenance && !isAdmin(req)) return res.status(503).json({ error: 'The service is under maintenance. Please try later.' });
-  const { url, pages, includeJs, includeMedia, engine, output, agree } = req.body || {};
+  const { url, pages, includeJs, includeMedia, engine, output, crawl, depth, agree } = req.body || {};
   if (!agree) return res.status(400).json({ error: 'Please accept the terms first.' });
   let target;
   try {
@@ -112,10 +114,17 @@ app.post('/api/clone', cloneLimiter, (req, res) => {
   if (blocked.some(d => host === d || host.endsWith('.' + d))) return res.status(403).json({ error: 'This domain cannot be cloned.' });
   if (waiting.length > 50) return res.status(503).json({ error: 'Server is busy. Please try again in a minute.' });
 
+  const useBrowser = engine !== 'fast' && s.allowRender && browserInstalled;
+  const fullSite = crawl === 'full' && s.allowFullSite;
   const id = crypto.randomBytes(12).toString('hex');
   const job = new CloneJob(id, target.href, {
     maxPages: Math.min(Math.max(1, Number(pages) || 1), s.maxPagesLimit),
-    engine: engine === 'fast' || !s.allowRender || !browserInstalled ? 'fast' : 'browser',
+    engine: useBrowser ? 'browser' : 'fast',
+    crawl: fullSite ? 'full' : 'single',
+    maxSitePages: s.fullSitePagesLimit,
+    maxDepth: Math.min(Math.max(1, Number(depth) || s.fullSiteDepthLimit), s.fullSiteDepthLimit),
+    respectRobots: s.respectRobots,
+    politenessMs: s.politenessMs,
     output: ['static', 'interactive', 'both'].includes(output) ? output : 'both',
     includeJs: includeJs !== false,
     includeMedia: !!includeMedia,

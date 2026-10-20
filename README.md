@@ -3,6 +3,7 @@
 Paste a URL → get a ZIP with the page's HTML, CSS, JavaScript, images and fonts, with every path rewritten so it opens offline.
 
 ## Features
+- **Whole-site crawl** — clone every page of a site from one URL (depth + page limits, robots.txt respected), with the Smart or Fast engine
 - **Smart engine** — real headless Chrome renders the page first: React, Vue, Angular, Next.js, Nuxt, Svelte
 - **Two copies in one ZIP**
   - `static/` — exact, editable HTML + CSS + images + fonts; opens with a double-click

@@ -88,6 +88,7 @@ npm start</code></pre>
 <table>
 <tr><th>Engine</th><th>How it works</th><th>Best for</th></tr>
 <tr><td><b>Smart</b> (default)</td><td>Headless Chrome renders the page, scrolls it, waits for images and fonts, then captures the live DOM and every network response.</td><td>React, Vue, Angular, Next.js, Nuxt, Svelte, MUI/Emotion/styled-components, Tailwind, any modern site.</td></tr>
+<tr><td colspan="3" style="background:#f1f2f8"><b>Whole-site crawl</b> works with either engine: set Scope to "Whole site" to follow same-site links and clone every page, up to the page and depth limits you set in Admin. robots.txt is respected.</td></tr>
 <tr><td><b>Fast</b></td><td>Downloads the HTML the server sends and its assets over plain HTTP. No browser, very light.</td><td>Static sites, WordPress, landing pages, low-RAM servers.</td></tr>
 </table>
 <p>What the Smart engine preserves in the static copy:</p>
@@ -146,7 +147,7 @@ docker run -d -p 3000:3000 --env-file .env -v $PWD/data:/app/data sitecloner</co
 <h2 id="api">API</h2>
 <table>
 <tr><th>Method &amp; path</th><th>Body / result</th></tr>
-<tr><td><code>POST /api/clone</code></td><td><code>{"url":"https://site.com","pages":3,"engine":"browser|fast","output":"both|static|interactive","includeMedia":false,"agree":true}</code> → <code>{"id":"…"}</code></td></tr>
+<tr><td><code>POST /api/clone</code></td><td><code>{"url":"https://site.com","engine":"browser|fast","crawl":"single|full","pages":3,"depth":3,"output":"both|static|interactive","includeMedia":false,"agree":true}</code> → <code>{"id":"…"}</code></td></tr>
 <tr><td><code>GET /api/clone/:id</code></td><td>Status: <code>queued | running | zipping | done | error</code>, progress counters and recent log lines.</td></tr>
 <tr><td><code>GET /api/clone/:id/download</code></td><td>The ZIP file (when status is <code>done</code>).</td></tr>
 <tr><td><code>GET /api/config</code></td><td>Public settings used by the front-end.</td></tr>

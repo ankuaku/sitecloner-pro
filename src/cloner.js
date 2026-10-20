@@ -52,10 +52,16 @@ export class CloneJob {
     this.url = url;
     this.opts = {
       maxPages: 1, engine: 'browser', output: 'both', includeJs: true, includeMedia: false,
+      crawl: 'single',          // 'single' = this page (+ up to maxPages linked) | 'full' = whole site
+      maxSitePages: 200,        // hard cap on pages in full-site mode
+      maxDepth: 4,              // how many clicks deep from the start page
+      politenessMs: 0,          // delay between pages, to be gentle on the target
+      respectRobots: true,      // obey robots.txt Disallow rules
+      includeSubdomains: false, // also follow links to sub-domains of the same site
       maxAssets: 600, maxBytes: 120 * 1024 * 1024, timeoutMs: 180000, ...opts,
     };
     this.status = 'queued';
-    this.progress = { pages: 0, assets: 0, failed: 0, bytes: 0 };
+    this.progress = { pages: 0, assets: 0, failed: 0, bytes: 0, queued: 0 };
     this.log = [];
     this.error = null;
     this.createdAt = Date.now();
@@ -64,18 +70,22 @@ export class CloneJob {
     this.zipPath = path.join(workRoot, `${id}.zip`);
     this.assets = new Map();  // absolute url -> Promise<local path | null>
     this.pages = new Map();   // absolute url -> local file name
+    this.depth = new Map();   // absolute url -> crawl depth from start
     this.queue = [];
+    this.disallow = [];       // robots.txt Disallow path prefixes
     this.limit = limiter(8);
     this.deadline = 0;
     this.session = null;
   }
+
+  get pageCap() { return this.opts.crawl === 'full' ? this.opts.maxSitePages : this.opts.maxPages; }
 
   say(msg) { this.log.push(msg); if (this.log.length > 200) this.log.shift(); }
 
   toJSON() {
     return { id: this.id, url: this.url, status: this.status, progress: this.progress,
       log: this.log.slice(-12), error: this.error, ready: this.status === 'done',
-      engine: this.session ? 'browser' : 'fast', output: this.opts.output };
+      engine: this.session ? 'browser' : 'fast', output: this.opts.output, crawl: this.opts.crawl };
   }
 
   get wantStatic() { return this.opts.output !== 'interactive'; }
@@ -206,27 +216,69 @@ export class CloneJob {
     return name;
   }
 
-  isPageLink(abs) {
-    const u = new URL(abs);
-    if (u.origin !== new URL(this.url).origin) return false;
-    const ext = path.extname(u.pathname).toLowerCase();
-    return !ext || ['.html', '.htm', '.php', '.asp', '.aspx'].includes(ext);
+  sameSite(u) {
+    const start = new URL(this.url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (this.opts.includeSubdomains) {
+      const root = start.hostname.replace(/^www\./, '');
+      return u.hostname === root || u.hostname.endsWith('.' + root);
+    }
+    return u.hostname === start.hostname;
   }
 
-  // Finds same-site pages to clone next.
-  discover(html, base) {
-    const $ = cheerio.load(html);
-    $('a[href]').each((_, el) => {
-      if (this.pages.size >= this.opts.maxPages) return false;
-      const v = $(el).attr('href');
-      if (/^(#|mailto:|tel:|javascript:)/i.test(v)) return;
-      let abs; try { abs = new URL(v, base); } catch { return; }
-      abs.hash = '';
-      if (this.isPageLink(abs.href) && !this.pages.has(abs.href)) {
-        this.pageFileFor(abs.href);
-        this.queue.push(abs.href);
+  allowedByRobots(pathname) {
+    if (!this.opts.respectRobots || !this.disallow.length) return true;
+    return !this.disallow.some(p => pathname.startsWith(p));
+  }
+
+  isPageLink(abs) {
+    let u; try { u = new URL(abs); } catch { return false; }
+    if (!this.sameSite(u)) return false;
+    if (!this.allowedByRobots(u.pathname)) return false;
+    const ext = path.extname(u.pathname).toLowerCase();
+    return !ext || ['.html', '.htm', '.php', '.asp', '.aspx', '.jsp'].includes(ext);
+  }
+
+  // Loads and parses robots.txt once, collecting Disallow rules for all user-agents.
+  async loadRobots() {
+    if (!this.opts.respectRobots) return;
+    try {
+      const { origin } = new URL(this.url);
+      const { buf } = await this.fetchUrl(origin + '/robots.txt', 512 * 1024);
+      let applies = false;
+      for (let line of buf.toString('utf8').split('\n')) {
+        line = line.replace(/#.*/, '').trim();
+        const m = line.match(/^([a-z-]+)\s*:\s*(.*)$/i);
+        if (!m) continue;
+        const key = m[1].toLowerCase(), val = m[2].trim();
+        if (key === 'user-agent') applies = val === '*';
+        else if (key === 'disallow' && applies && val) this.disallow.push(val.replace(/\*.*$/, ''));
       }
+      if (this.disallow.length) this.say(`robots.txt: avoiding ${this.disallow.length} path rule(s)`);
+    } catch { /* no robots.txt — allow everything */ }
+  }
+
+  // Finds same-site pages to clone next, within depth and page limits.
+  discover(html, base, depth) {
+    if (this.opts.crawl !== 'full' && this.opts.maxPages <= 1) return;
+    if (depth >= this.opts.maxDepth) return;
+    const $ = cheerio.load(html);
+    const found = new Set();
+    $('a[href]').each((_, el) => {
+      const v = $(el).attr('href');
+      if (!v || /^(#|mailto:|tel:|javascript:|data:)/i.test(v)) return;
+      let abs; try { abs = new URL(v, base); } catch { return; }
+      abs.hash = ''; abs.search = abs.search; // keep query (some sites paginate by it)
+      found.add(abs.href);
     });
+    for (const href of found) {
+      if (this.pages.size >= this.pageCap) break;
+      if (this.pages.has(href) || !this.isPageLink(href)) continue;
+      this.pageFileFor(href);
+      this.depth.set(href, depth + 1);
+      this.queue.push(href);
+    }
+    this.progress.queued = this.queue.length;
   }
 
   async processPage(html, finalUrl, rendered) {
@@ -360,20 +412,25 @@ export class CloneJob {
         }
       }
       if (!this.session && this.opts.output === 'interactive') this.opts.output = 'static';
+      if (this.opts.crawl === 'full') this.say(`Full-site crawl: up to ${this.opts.maxSitePages} pages, depth ${this.opts.maxDepth}`);
 
+      await this.loadRobots();
       this.pageFileFor(start);
+      this.depth.set(start, 0);
       this.queue.push(start);
       const done = new Set();
       while (this.queue.length) {
-        if (Date.now() > this.deadline) { this.say('Time limit reached — stopping crawl'); break; }
+        if (Date.now() > this.deadline) { this.say(`Time limit reached — stopping with ${this.progress.pages} page(s)`); break; }
         const pageUrl = this.queue.shift();
         if (done.has(pageUrl)) continue;
         done.add(pageUrl);
+        const depth = this.depth.get(pageUrl) || 0;
         const file = this.pages.get(pageUrl);
-        this.say(`Loading page: ${pageUrl}`);
+        this.progress.queued = this.queue.length;
+        this.say(`[${this.progress.pages + 1}] Loading: ${pageUrl}${this.queue.length ? `  (+${this.queue.length} queued)` : ''}`);
         try {
           const { html, finalUrl, rendered } = await this.loadPage(pageUrl);
-          this.discover(html, finalUrl);
+          this.discover(html, finalUrl, depth);
           if (this.wantStatic) {
             const out = await this.processPage(html, finalUrl, rendered);
             await fsp.mkdir(this.staticDir, { recursive: true });
@@ -386,13 +443,16 @@ export class CloneJob {
           if (this.wantStatic) await fsp.writeFile(path.join(this.staticDir, file),
             `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${pageUrl}"><a href="${pageUrl}">${pageUrl}</a>`);
         }
+        if (this.opts.politenessMs && this.queue.length) await new Promise(r => setTimeout(r, this.opts.politenessMs));
       }
+      this.progress.queued = 0;
       await Promise.all(this.assets.values());
 
       if (this.wantMirror) {
         this.say('Building interactive copy…');
         await fsp.mkdir(this.mirrorDir, { recursive: true });
-        const n = await buildMirror(this.session, start, this.mirrorDir, Math.max(this.opts.maxAssets * 3, 1500));
+        const mirrorCap = this.opts.crawl === 'full' ? Math.max(this.opts.maxAssets * 6, 6000) : Math.max(this.opts.maxAssets * 3, 1500);
+        const n = await buildMirror(this.session, start, this.mirrorDir, mirrorCap);
         this.say(`Interactive copy: ${n} files recorded`);
         if (!this.wantStatic) this.progress.assets = n;
       }

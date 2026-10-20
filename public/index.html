@@ -38,12 +38,17 @@
         <option value="browser">Smart — real browser (React, Vue, Next.js)</option>
         <option value="fast">Fast — simple HTML sites</option>
       </select></label>
+      <label>Scope <select id="crawl">
+        <option value="single">This page only</option>
+        <option value="full">Whole site — crawl every page</option>
+      </select></label>
       <label>Download <select id="output">
         <option value="both">Static + Interactive (recommended)</option>
         <option value="static">Static only — editable HTML/CSS</option>
         <option value="interactive">Interactive only — works like the original</option>
       </select></label>
-      <label>Pages <select id="pages"></select></label>
+      <label id="pagesWrap">Pages <select id="pages"></select></label>
+      <label id="depthWrap" hidden>Depth <select id="depth"></select></label>
       <label><input type="checkbox" id="includeMedia"> Include videos</label>
     </div>
     <label class="terms"><input type="checkbox" id="agree"> <span id="terms">Only clone websites you own or have permission to copy.</span></label>
@@ -53,6 +58,7 @@
       <div class="bar indet" id="bar"><i></i></div>
       <div class="counters">
         <span><b id="cPages">0</b>pages</span>
+        <span id="cQueuedWrap" hidden><b id="cQueued">0</b>queued</span>
         <span><b id="cAssets">0</b>files</span>
         <span><b id="cSize">0 KB</b></span>
         <span><b id="cFailed">0</b>skipped</span>

@@ -92,6 +92,17 @@ td.u{word-break:break-all}
     </div>
 
     <div class="card">
+      <h3>Whole-site crawl</h3>
+      <div class="fields">
+        <div class="f full check"><input type="checkbox" name="allowFullSite" id="allowFullSite"><label for="allowFullSite" style="margin:0;color:var(--text)">Offer "Whole site" crawl (needs the Smart engine)</label></div>
+        <div class="f"><label>Max pages per whole-site crawl</label><input type="number" name="fullSitePagesLimit" min="1" max="2000"><small>Higher = heavier on your server.</small></div>
+        <div class="f"><label>Max crawl depth</label><input type="number" name="fullSiteDepthLimit" min="1" max="10"></div>
+        <div class="f"><label>Delay between pages (ms)</label><input type="number" name="politenessMs" min="0"><small>Gentler on the target site.</small></div>
+        <div class="f full check"><input type="checkbox" name="respectRobots" id="respectRobots"><label for="respectRobots" style="margin:0;color:var(--text)">Respect robots.txt (recommended)</label></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Ads & code</h3>
       <div class="fields">
         <div class="f full"><label>Ad above the tool (HTML)</label><textarea name="adHeader"></textarea></div>

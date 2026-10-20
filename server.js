@@ -151,11 +151,26 @@ app.get('/api/clone/:id', (req, res) => {
   res.json(job.toJSON());
 });
 
+// Resolve a clone's files from disk by id, so download/preview still work if the
+// in-memory job record was dropped (e.g. cleanup) but the files are still present.
+function zipPathFor(id) { return path.join(WORK, id + '.zip'); }
+function staticDirFor(id) {
+  const site = path.join(WORK, id, 'site');
+  const withStatic = path.join(site, 'static');
+  if (fs.existsSync(withStatic)) return withStatic;
+  if (fs.existsSync(site)) return site;
+  return null;
+}
+
 app.get('/api/clone/:id/download', (req, res) => {
-  const job = jobs.get(req.params.id);
-  if (!job || job.status !== 'done' || !fs.existsSync(job.zipPath)) return res.status(404).send('File expired or not ready.');
-  const name = new URL(job.url).hostname.replace(/^www\./, '').replace(/[^a-z0-9.-]/gi, '_');
-  res.download(job.zipPath, `${name}-clone.zip`);
+  const id = req.params.id;
+  if (!/^[a-f0-9]+$/.test(id)) return res.status(400).send('Bad id.');
+  const job = jobs.get(id);
+  const zip = job?.zipPath && fs.existsSync(job.zipPath) ? job.zipPath : (fs.existsSync(zipPathFor(id)) ? zipPathFor(id) : null);
+  if (!zip) return res.status(404).send('File expired or not ready.');
+  let name = 'site';
+  try { name = new URL(job?.url || 'http://site').hostname.replace(/^www\./, '').replace(/[^a-z0-9.-]/gi, '_') || 'site'; } catch {}
+  res.download(zip, `${name}-clone.zip`);
 });
 
 // In-browser preview of the cloned static copy.
@@ -165,9 +180,11 @@ const PREVIEW_TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css',
   '.otf': 'font/otf', '.eot': 'application/vnd.ms-fontobject', '.mp4': 'video/mp4', '.webm': 'video/webm', '.txt': 'text/plain; charset=utf-8' };
 
 app.get(/^\/api\/clone\/([a-f0-9]+)\/preview(\/.*)?$/, (req, res) => {
-  const job = jobs.get(req.params[0]);
-  if (!job || job.status !== 'done' || !job.wantStatic) return res.status(404).send('Preview not available.');
-  const root = path.resolve(job.staticDir);
+  const id = req.params[0];
+  const job = jobs.get(id);
+  const dir = (job && job.status === 'done' && job.wantStatic) ? job.staticDir : staticDirFor(id);
+  if (!dir) return res.status(404).send('Preview not available (the clone may have expired — please clone again).');
+  const root = path.resolve(dir);
   if (!fs.existsSync(root)) return res.status(404).send('Preview expired.');
   let rel = decodeURIComponent((req.params[1] || '/').split('?')[0]);
   let file = path.resolve(root, '.' + rel);

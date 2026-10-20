@@ -58,9 +58,12 @@
     if (!c.fullSite) $('crawl').querySelector('[value=full]').disabled = true;
     injectHtml($('adHeader'), c.adHeader);
     injectHtml($('adFooter'), c.adFooter);
-    const showPublishUI = () => { if (cfg.publish || isAdmin) $('uploadBox').style.display = ''; };
-    if (c.publish) showPublishUI();
-    if (c.publishAny) fetch('/api/admin/me').then(r => r.json()).then(m => { isAdmin = !!m.admin; showPublishUI(); }).catch(() => {});
+    const showPublishUI = () => {
+      if (cfg.publish || isAdmin) $('uploadBox').style.display = '';
+      if (cfg.aiMerge || (cfg.aiMergeAny && isAdmin)) $('aiBox').style.display = '';
+    };
+    if (c.publish || c.aiMerge) showPublishUI();
+    if (c.publishAny || c.aiMergeAny) fetch('/api/admin/me').then(r => r.json()).then(m => { isAdmin = !!m.admin; showPublishUI(); }).catch(() => {});
   });
 
   // Upload a ZIP and publish it
@@ -87,6 +90,27 @@
     };
   };
   bindZip();
+
+  // AI merge
+  $('aiGo') && ($('aiGo').onclick = async () => {
+    const template = $('aiTemplate').value, design = $('aiDesign').value;
+    $('aiAlert').classList.remove('show'); $('aiResultWrap').style.display = 'none';
+    if (!template.trim() || !design.trim()) { $('aiAlert').textContent = 'Paste both the template and the new design.'; $('aiAlert').classList.add('show'); return; }
+    $('aiGo').disabled = true; $('aiGo').textContent = 'Merging…';
+    try {
+      const r = await fetch('/api/ai-merge', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ template, design, instruction: $('aiInstruction').value }) });
+      const d = await r.json();
+      if (!r.ok) { $('aiAlert').textContent = d.error || 'Merge failed.'; $('aiAlert').classList.add('show'); }
+      else { $('aiResultWrap').style.display = ''; $('aiResult').value = d.merged; }
+    } catch { $('aiAlert').textContent = 'Network error.'; $('aiAlert').classList.add('show'); }
+    $('aiGo').disabled = false; $('aiGo').textContent = 'Merge with AI';
+  });
+  $('aiCopy') && ($('aiCopy').onclick = () => { $('aiResult').select(); try { document.execCommand('copy'); $('aiCopy').textContent = 'Copied'; setTimeout(() => $('aiCopy').textContent = 'Copy', 1500); } catch {} });
+  $('aiDownload') && ($('aiDownload').onclick = () => {
+    const blob = new Blob([$('aiResult').value], { type: 'text/plain' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'merged.txt'; a.click(); URL.revokeObjectURL(a.href);
+  });
 
   let isAdmin = false, lastCloneId = null;
   $('publish').onclick = async () => {

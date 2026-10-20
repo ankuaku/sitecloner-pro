@@ -103,6 +103,8 @@ app.get('/api/config', (req, res) => {
     fullSitePagesLimit: s.fullSitePagesLimit, fullSiteDepthLimit: s.fullSiteDepthLimit,
     publish: s.allowPublish && !s.publishAdminOnly,  // visitor-facing publish button
     publishAny: s.allowPublish, maxZipMb: s.maxZipMb,
+    aiMerge: s.allowAiMerge && !!s.aiApiKey && !s.aiMergeAdminOnly,
+    aiMergeAny: s.allowAiMerge && !!s.aiApiKey,
     adHeader: s.adHeader, adFooter: s.adFooter, footerText: s.footerText, termsText: s.termsText,
   });
 });
@@ -230,6 +232,47 @@ app.post('/api/clone/:id/publish', (req, res) => {
   res.json({ url: `${publicBase(req)}/s/${slug}/`, slug });
 });
 
+// AI merge: put a new frontend design into an existing backend template (OpenAI-compatible API).
+function chatUrl(base) {
+  const b = base.replace(/\/+$/, '');
+  return /\/v\d+$/.test(b) ? b + '/chat/completions' : b + '/v1/chat/completions';
+}
+function extractCode(text) {
+  const m = text.match(/```[a-zA-Z0-9]*\n([\s\S]*?)```/);
+  return (m ? m[1] : text).trim();
+}
+
+app.post('/api/ai-merge', async (req, res) => {
+  const s = getSettings();
+  if (!s.allowAiMerge || !s.aiApiKey) return res.status(403).json({ error: 'AI merge is not enabled.' });
+  if (s.aiMergeAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can run AI merge.' });
+  const design = String(req.body?.design || '');
+  const template = String(req.body?.template || '');
+  const instruction = String(req.body?.instruction || '').slice(0, 2000);
+  if (!design.trim() || !template.trim()) return res.status(400).json({ error: 'Provide both the new design and the backend/template code.' });
+  if (design.length > 80000 || template.length > 80000) return res.status(400).json({ error: 'Each file is too large — merge one page at a time (max ~80 KB each).' });
+
+  const sys = 'You are a senior web developer. You merge a new front-end design into an existing server-side template, keeping ALL of the template\'s dynamic code intact — its variables, loops, conditionals, includes, CSRF tokens, form actions and server tags (e.g. {{ }}, {% %}, <?php ?>, <%= %>, @if, ${ }). Apply the new design\'s HTML structure and CSS/classes, but wire every dynamic value from the original into the right place in the new markup. Do not invent new backend variables. Output ONLY the final merged file, inside a single code block, with no explanation.';
+  const user = `EXISTING BACKEND TEMPLATE (keep all dynamic code working):\n\`\`\`\n${template}\n\`\`\`\n\nNEW FRONT-END DESIGN (use this look/structure):\n\`\`\`\n${design}\n\`\`\`\n\n${instruction ? 'EXTRA INSTRUCTION: ' + instruction + '\n\n' : ''}Return the merged template file only.`;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 120000);
+  try {
+    const r = await fetch(chatUrl(s.aiBaseUrl), {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + s.aiApiKey },
+      body: JSON.stringify({ model: s.aiModel, temperature: 0.2, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(502).json({ error: 'AI error: ' + (data.error?.message || `HTTP ${r.status}`) });
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return res.status(502).json({ error: 'AI returned no result.' });
+    res.json({ merged: extractCode(content), usage: data.usage || null });
+  } catch (e) {
+    res.status(502).json({ error: e.name === 'AbortError' ? 'AI request timed out.' : 'Could not reach the AI service.' });
+  } finally { clearTimeout(t); }
+});
+
 // Upload a ZIP of a static site and publish it (Netlify-style).
 const uploadZip = multer({
   storage: multer.memoryStorage(),
@@ -320,8 +363,19 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
 });
 app.post('/api/admin/logout', (req, res) => { res.clearCookie('sc_admin'); res.json({ ok: true }); });
 app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req) }));
-app.get('/api/admin/settings', requireAdmin, (req, res) => res.json(getSettings()));
-app.post('/api/admin/settings', requireAdmin, (req, res) => res.json(updateSettings(req.body || {})));
+app.get('/api/admin/settings', requireAdmin, (req, res) => {
+  const s = { ...getSettings() };
+  if (s.aiApiKey) s.aiApiKey = '';          // never send the stored key back
+  s.aiApiKeySet = !!getSettings().aiApiKey;  // just tell the UI whether one is saved
+  res.json(s);
+});
+app.post('/api/admin/settings', requireAdmin, (req, res) => {
+  const body = { ...(req.body || {}) };
+  if (!body.aiApiKey) delete body.aiApiKey;   // empty = keep the existing key (the GET never returns it)
+  const s = updateSettings(body);
+  const out = { ...s }; if (out.aiApiKey) out.aiApiKey = ''; out.aiApiKeySet = !!s.aiApiKey;
+  res.json(out);
+});
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   res.json({ ...getStats(), running, queued: waiting.length, activeJobs: jobs.size, puppeteerInstalled: browserInstalled, version: '1.2.0' });
 });

@@ -120,6 +120,17 @@ td.u{word-break:break-all}
     </div>
 
     <div class="card">
+      <h3>AI Merge (optional)</h3>
+      <div class="fields">
+        <div class="f full check"><input type="checkbox" name="allowAiMerge" id="allowAiMerge"><label for="allowAiMerge" style="margin:0;color:var(--text)">Enable AI Merge (new design into backend templates)</label></div>
+        <div class="f full check"><input type="checkbox" name="aiMergeAdminOnly" id="aiMergeAdminOnly"><label for="aiMergeAdminOnly" style="margin:0;color:var(--text)">Only the admin can run AI Merge (protects your API key cost)</label></div>
+        <div class="f"><label>API base URL</label><input type="text" name="aiBaseUrl" placeholder="https://api.deepseek.com"><small>DeepSeek (cheap), OpenRouter, or your self-hosted endpoint.</small></div>
+        <div class="f"><label>Model</label><input type="text" name="aiModel" placeholder="deepseek-chat"></div>
+        <div class="f full"><label>API key</label><input type="password" name="aiApiKey" placeholder="leave blank to keep the saved key" autocomplete="new-password"><small id="aiKeyNote"></small></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Ads & code</h3>
       <div class="fields">
         <div class="f full"><label>Ad above the tool (HTML)</label><textarea name="adHeader"></textarea></div>
@@ -155,6 +166,7 @@ async function init() {
     if (!el.name || !(el.name in s)) continue;
     if (el.type === 'checkbox') el.checked = !!s[el.name]; else el.value = s[el.name];
   }
+  $('aiKeyNote').textContent = s.aiApiKeySet ? 'A key is saved. Leave blank to keep it.' : 'No key saved yet.';
   loadStats(); setInterval(loadStats, 10000);
   loadPublished();
 }

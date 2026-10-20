@@ -90,6 +90,25 @@
     <div id="zipResult" style="display:none;margin-top:12px;font-size:14px"><span class="msg ok">Live at:</span> <a id="zipLink" href="#" target="_blank" rel="noopener" style="color:var(--primary)"></a></div>
   </div>
 
+  <div class="tool" id="aiBox" style="display:none;max-width:780px;margin-top:16px">
+    <h3 style="margin:0 0 6px;font-size:16px">AI Merge — new design into your backend</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Paste your backend/template file (keeps all dynamic code) and the new front-end design. AI returns the merged file. Do one page at a time.</p>
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:13px;color:var(--muted)">Backend / template file (PHP, Blade, EJS, Twig, JSX…)</label>
+        <textarea id="aiTemplate" placeholder="Paste the existing template with its {{ }} / <?php ?> code…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
+      <div><label style="font-size:13px;color:var(--muted)">New front-end design (HTML/CSS)</label>
+        <textarea id="aiDesign" placeholder="Paste the new design's HTML…" style="width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea></div>
+      <input id="aiInstruction" type="text" placeholder="Optional: extra instruction (e.g. keep the login form action)" style="font:inherit;font-size:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)">
+      <div><button class="btn" type="button" id="aiGo">Merge with AI</button></div>
+    </div>
+    <div class="alert" id="aiAlert"></div>
+    <div id="aiResultWrap" style="display:none;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><label style="font-size:13px;color:var(--muted)">Merged result</label>
+        <span style="display:flex;gap:8px"><button class="btn ghost" type="button" id="aiCopy" style="min-height:34px;padding:0 12px">Copy</button><button class="btn ghost" type="button" id="aiDownload" style="min-height:34px;padding:0 12px">Download</button></span></div>
+      <textarea id="aiResult" readonly style="width:100%;min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--text)"></textarea>
+    </div>
+  </div>
+
   <section id="recentWrap" style="display:none;margin-top:28px">
     <h2 style="font-size:20px;margin:0 0 14px;text-align:left">Your recent clones</h2>
     <div id="recentList" class="grid" style="grid-template-columns:1fr"></div>

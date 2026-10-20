@@ -24,6 +24,11 @@ export const DEFAULTS = {
   allowPublish: false,        // let a finished clone be published as a live website on this server (/s/<id>)
   publishAdminOnly: true,     // only the admin can publish (safer); off = any visitor who cloned can publish
   maxZipMb: 50,               // max upload size for "publish a ZIP" (Netlify-style)
+  allowAiMerge: false,        // enable the AI merge feature (frontend design + backend template)
+  aiMergeAdminOnly: true,     // only admin can run AI merge (protects the API key / cost)
+  aiBaseUrl: 'https://api.deepseek.com',  // any OpenAI-compatible endpoint (DeepSeek, OpenRouter, self-hosted)
+  aiModel: 'deepseek-chat',   // model name at that endpoint
+  aiApiKey: '',               // secret API key (kept server-side, never sent to the browser)
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

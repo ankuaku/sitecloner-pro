@@ -119,10 +119,13 @@
             : j.output === 'interactive' ? 'Clone ready! Run START-WINDOWS.bat inside the ZIP to open it.' : 'Clone ready! Open index.html inside the ZIP.';
           $('dl').style.display = '';
           $('dl').href = '/api/clone/' + id + '/download';
+          if (j.canPreview) { $('preview').style.display = ''; $('preview').href = '/api/clone/' + id + '/preview/'; }
+          else $('preview').style.display = 'none';
         } else {
           $('msg').className = 'msg err';
           $('msg').textContent = 'Failed: ' + j.error;
           $('dl').style.display = 'none';
+          $('preview').style.display = 'none';
         }
       }
     }, 1000);

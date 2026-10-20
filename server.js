@@ -58,6 +58,7 @@ setInterval(() => {
   for (const [id, job] of jobs) {
     if (Date.now() - job.createdAt > ttl && !['running', 'zipping'].includes(job.status)) {
       fs.rm(job.zipPath, { force: true }, () => {});
+      fs.rm(job.workDir, { recursive: true, force: true }, () => {});
       jobs.delete(id);
     }
   }
@@ -151,6 +152,28 @@ app.get('/api/clone/:id/download', (req, res) => {
   if (!job || job.status !== 'done' || !fs.existsSync(job.zipPath)) return res.status(404).send('File expired or not ready.');
   const name = new URL(job.url).hostname.replace(/^www\./, '').replace(/[^a-z0-9.-]/gi, '_');
   res.download(job.zipPath, `${name}-clone.zip`);
+});
+
+// In-browser preview of the cloned static copy.
+const PREVIEW_TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript',
+  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.avif': 'image/avif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
+  '.otf': 'font/otf', '.eot': 'application/vnd.ms-fontobject', '.mp4': 'video/mp4', '.webm': 'video/webm', '.txt': 'text/plain; charset=utf-8' };
+
+app.get(/^\/api\/clone\/([a-f0-9]+)\/preview(\/.*)?$/, (req, res) => {
+  const job = jobs.get(req.params[0]);
+  if (!job || job.status !== 'done' || !job.wantStatic) return res.status(404).send('Preview not available.');
+  const root = path.resolve(job.staticDir);
+  if (!fs.existsSync(root)) return res.status(404).send('Preview expired.');
+  let rel = decodeURIComponent((req.params[1] || '/').split('?')[0]);
+  let file = path.resolve(root, '.' + rel);
+  if (file !== root && !file.startsWith(root + path.sep)) return res.status(403).send('Forbidden');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
+  if (!fs.existsSync(file)) return res.status(404).send('Not found.');
+  res.set('Content-Type', PREVIEW_TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Cache-Control', 'no-store');
+  fs.createReadStream(file).pipe(res);
 });
 
 // ---------------- admin ----------------

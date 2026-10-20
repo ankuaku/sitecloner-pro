@@ -85,7 +85,8 @@ export class CloneJob {
   toJSON() {
     return { id: this.id, url: this.url, status: this.status, progress: this.progress,
       log: this.log.slice(-12), error: this.error, ready: this.status === 'done',
-      engine: this.session ? 'browser' : 'fast', output: this.opts.output, crawl: this.opts.crawl };
+      engine: this.session ? 'browser' : 'fast', output: this.opts.output, crawl: this.opts.crawl,
+      canPreview: this.status === 'done' && this.wantStatic };
   }
 
   get wantStatic() { return this.opts.output !== 'interactive'; }
@@ -472,7 +473,8 @@ export class CloneJob {
       this.status = 'zipping';
       this.say('Creating ZIP…');
       await this.zip();
-      await fsp.rm(this.workDir, { recursive: true, force: true });
+      // Keep the static files on disk so the result can be previewed in the browser.
+      // They are removed together with the ZIP by the server's cleanup timer.
       this.status = 'done';
       this.say(`Done — ${this.progress.pages} page(s), ${this.progress.assets} file(s)`);
     } catch (e) {

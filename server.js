@@ -262,6 +262,35 @@ async function callAi(system, user) {
   } finally { clearTimeout(t); }
 }
 
+// AI chat: talk to the AI about your code — explain, debug, paste an error, get a fix.
+app.post('/api/ai-chat', async (req, res) => {
+  const s = getSettings();
+  if (!s.allowAiMerge || !s.aiApiKey) return res.status(403).json({ error: 'AI is not enabled.' });
+  if (s.aiMergeAdminOnly && !isAdmin(req)) return res.status(403).json({ error: 'Only the admin can use AI.' });
+  let msgs = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  msgs = msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-20);
+  if (!msgs.length) return res.status(400).json({ error: 'Nothing to send.' });
+  const total = msgs.reduce((n, m) => n + m.content.length, 0);
+  if (total > 120000) return res.status(400).json({ error: 'Conversation is too long — start a new chat or shorten the pasted code.' });
+  const sys = 'You are a helpful senior web developer assistant. Help the user with their website/code: explain clearly, debug, and fix. When the user pastes an error or code, find the cause and give the corrected code. Put any code in a fenced code block. Keep answers concise and practical.';
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 120000);
+  try {
+    const r = await fetch(chatUrl(s.aiBaseUrl), {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + s.aiApiKey },
+      body: JSON.stringify({ model: s.aiModel, temperature: 0.3, messages: [{ role: 'system', content: sys }, ...msgs] }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(502).json({ error: 'AI error: ' + (data.error?.message || `HTTP ${r.status}`) });
+    const reply = data.choices?.[0]?.message?.content;
+    if (!reply) return res.status(502).json({ error: 'AI returned no reply.' });
+    res.json({ reply, usage: data.usage || null });
+  } catch (e) {
+    res.status(502).json({ error: e.name === 'AbortError' ? 'AI request timed out.' : 'Could not reach the AI service.' });
+  } finally { clearTimeout(t); }
+});
+
 // ---- whole-project AI jobs ----
 const aiJobs = new Map();
 const uploadProject = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024, files: 2 } })
@@ -271,6 +300,7 @@ setInterval(() => {
   for (const [id, job] of aiJobs) {
     if (Date.now() - job.createdAt > 60 * 60000 && !['running', 'zipping'].includes(job.status)) {
       fs.rm(job.zipPath, { force: true }, () => {});
+      fs.rm(job.previewDir, { recursive: true, force: true }, () => {});
       aiJobs.delete(id);
     }
   }
@@ -313,6 +343,22 @@ app.get('/api/ai-project/:id/download', (req, res) => {
   const job = aiJobs.get(req.params.id);
   if (!job || job.status !== 'done' || !fs.existsSync(job.zipPath)) return res.status(404).send('Not ready or expired.');
   res.download(job.zipPath, `ai-${job.mode}-project.zip`);
+});
+
+app.get(/^\/api\/ai-project\/([a-f0-9]+)\/preview(\/.*)?$/, (req, res) => {
+  const job = aiJobs.get(req.params[0]);
+  if (!job || !job.canPreview || !fs.existsSync(job.previewDir)) return res.status(404).send('Preview not available for this project.');
+  const root = path.resolve(job.previewDir);
+  let rel = decodeURIComponent((req.params[1] || '/').split('?')[0]);
+  if (rel === '/' || rel === '') rel = '/' + job.previewIndex;
+  let file = path.resolve(root, '.' + rel);
+  if (file !== root && !file.startsWith(root + path.sep)) return res.status(403).send('Forbidden');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, job.previewIndex);
+  if (!fs.existsSync(file)) return res.status(404).send('Not found.');
+  res.set('Content-Type', PREVIEW_TYPES[path.extname(file).toLowerCase()] || 'text/plain; charset=utf-8');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Cache-Control', 'no-store');
+  fs.createReadStream(file).pipe(res);
 });
 
 app.post('/api/ai-merge', async (req, res) => {

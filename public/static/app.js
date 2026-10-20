@@ -97,14 +97,52 @@
     aiMode = m;
     $('editInputs').style.display = m === 'edit' ? '' : 'none';
     $('mergeInputs').style.display = m === 'merge' ? '' : 'none';
-    $('tabEdit').style.background = m === 'edit' ? 'var(--primary)' : '';
-    $('tabEdit').style.color = m === 'edit' ? '#fff' : '';
-    $('tabMerge').style.background = m === 'merge' ? 'var(--primary)' : '';
-    $('tabMerge').style.color = m === 'merge' ? '#fff' : '';
+    $('chatInputs').style.display = m === 'chat' ? '' : 'none';
+    $('aiGo').style.display = m === 'chat' ? 'none' : '';
+    if (m !== 'chat') $('aiStatus').classList.remove('show');
+    for (const [tab, mode] of [['tabEdit', 'edit'], ['tabMerge', 'merge'], ['tabChat', 'chat']]) {
+      $(tab).style.background = m === mode ? 'var(--primary)' : '';
+      $(tab).style.color = m === mode ? '#fff' : '';
+    }
   }
   $('tabEdit') && ($('tabEdit').onclick = () => setAiMode('edit'));
   $('tabMerge') && ($('tabMerge').onclick = () => setAiMode('merge'));
+  $('tabChat') && ($('tabChat').onclick = () => setAiMode('chat'));
   if ($('aiBox')) setAiMode('edit');
+
+  // AI chat
+  let chatMsgs = [];
+  const esc2 = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  function renderChat() {
+    if (!chatMsgs.length) { $('chatMsgs').innerHTML = '<div style="color:var(--muted)">Ask anything about your code, paste an error, or request a fix. The AI replies here.</div>'; return; }
+    $('chatMsgs').innerHTML = chatMsgs.map(m => {
+      const who = m.role === 'user' ? 'You' : 'AI';
+      const body = esc2(m.content).replace(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g, (_, l, c) => `<pre style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;margin:6px 0"><code>${c}</code></pre>`);
+      return `<div><b style="color:${m.role === 'user' ? 'var(--text)' : 'var(--primary)'}">${who}</b><div style="white-space:pre-wrap;word-break:break-word;margin-top:2px">${body}</div></div>`;
+    }).join('');
+    $('chatMsgs').scrollTop = 1e6;
+  }
+  $('chatNew') && ($('chatNew').onclick = () => { chatMsgs = []; renderChat(); });
+  async function sendChat() {
+    const text = $('chatInput').value.trim();
+    if (!text) return;
+    $('aiAlert').classList.remove('show');
+    chatMsgs.push({ role: 'user', content: text }); $('chatInput').value = '';
+    chatMsgs.push({ role: 'assistant', content: '…' }); renderChat();
+    $('chatSend').disabled = true;
+    try {
+      const r = await fetch('/api/ai-chat', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: chatMsgs.filter(m => m.content !== '…') }) });
+      const d = await r.json();
+      chatMsgs.pop(); // remove the placeholder
+      if (!r.ok) { aiErr(d.error || 'Chat failed.'); }
+      else chatMsgs.push({ role: 'assistant', content: d.reply });
+      renderChat();
+    } catch { chatMsgs.pop(); aiErr('Network error.'); renderChat(); }
+    $('chatSend').disabled = false;
+  }
+  $('chatSend') && ($('chatSend').onclick = sendChat);
+  $('chatInput') && ($('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); } }));
 
   $('aiGo') && ($('aiGo').onclick = async () => {
     $('aiAlert').classList.remove('show');
@@ -144,8 +182,12 @@
         clearInterval(aiPoll); aiReset();
         $('aiBar').classList.remove('indet'); $('aiBar').firstElementChild.style.width = '100%';
         $('aiResult2').classList.add('show');
-        if (j.status === 'done') { $('aiMsg').className = 'msg ok'; $('aiMsg').textContent = `Done — ${j.progress.changed} file(s) updated.`; $('aiDl').style.display = ''; $('aiDl').href = '/api/ai-project/' + id + '/download'; }
-        else { $('aiMsg').className = 'msg err'; $('aiMsg').textContent = 'Failed: ' + j.error; $('aiDl').style.display = 'none'; }
+        if (j.status === 'done') {
+          $('aiMsg').className = 'msg ok'; $('aiMsg').textContent = `Done — ${j.progress.changed} file(s) updated.`;
+          $('aiDl').style.display = ''; $('aiDl').href = '/api/ai-project/' + id + '/download';
+          if (j.canPreview) { $('aiPreview').style.display = ''; $('aiPreview').href = '/api/ai-project/' + id + '/preview/'; } else $('aiPreview').style.display = 'none';
+        }
+        else { $('aiMsg').className = 'msg err'; $('aiMsg').textContent = 'Failed: ' + j.error; $('aiDl').style.display = 'none'; $('aiPreview').style.display = 'none'; }
       }
     }, 1200);
   }

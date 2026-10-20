@@ -31,18 +31,32 @@ export class AIJob {
     this.error = null;
     this.createdAt = Date.now();
     this.zipPath = path.join(workRoot, `${id}-ai.zip`);
+    this.previewDir = path.join(workRoot, `${id}-ai`);
+    this.previewIndex = null;
+    this.canPreview = false;
   }
   say(m) { this.log.push(m); if (this.log.length > 200) this.log.shift(); }
   toJSON() {
     return { id: this.id, mode: this.mode, status: this.status, progress: this.progress,
-      log: this.log.slice(-14), error: this.error, ready: this.status === 'done' };
+      log: this.log.slice(-14), error: this.error, ready: this.status === 'done',
+      canPreview: this.canPreview };
+  }
+
+  finalize(out) {
+    this.status = 'zipping'; this.say('Packing project…');
+    fs.writeFileSync(this.zipPath, out.toBuffer());
+    try { out.extractAllTo(this.previewDir, true); } catch {}
+    const names = out.getEntries().filter(e => !e.isDirectory).map(e => e.entryName);
+    const htmls = names.filter(n => /\.html?$/i.test(n));
+    this.previewIndex = htmls.find(n => /(^|\/)index\.html?$/i.test(n)) || htmls.sort((a, b) => a.length - b.length)[0] || null;
+    this.canPreview = !!this.previewIndex;
   }
 
   async run() {
     this.status = 'running';
     try {
-      if (this.mode === 'edit') await this.runEdit();
-      else await this.runMerge();
+      const out = this.mode === 'edit' ? await this.runEdit() : await this.runMerge();
+      this.finalize(out);
       this.status = 'done';
       this.say(`Done — ${this.progress.changed} file(s) updated, ${this.progress.skipped} kept, ${this.progress.failed} failed`);
     } catch (e) {
@@ -80,8 +94,7 @@ export class AIJob {
     // copy everything we did not process, untouched
     for (const e of entries) if (!processed.has(e.entryName)) out.addFile(e.entryName, e.getData());
     this.progress.skipped += entries.length - toProcess.length;
-    this.status = 'zipping'; this.say('Packing project…');
-    fs.writeFileSync(this.zipPath, out.toBuffer());
+    return out;
   }
 
   async runMerge() {
@@ -120,7 +133,6 @@ export class AIJob {
     }
     for (const e of bEntries) if (!processed.has(e.entryName)) out.addFile(e.entryName, e.getData());
     this.progress.skipped = bEntries.length - toProcess.length;
-    this.status = 'zipping'; this.say('Packing project…');
-    fs.writeFileSync(this.zipPath, out.toBuffer());
+    return out;
   }
 }

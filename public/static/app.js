@@ -119,12 +119,17 @@
     $('chatChips').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { chatFiles.splice(+b.dataset.rm, 1); renderChips(); });
   }
   function renderChat() {
-    if (!chatMsgs.length) { $('chatMsgs').innerHTML = '<div style="color:var(--muted)">Talk to the AI about your code — paste or attach a file, describe an error, ask a question, or request a change. Fixes come back with a one-click Copy.</div>'; return; }
+    if (!chatMsgs.length) { $('chatMsgs').innerHTML = '<div style="color:var(--muted);margin:auto;text-align:center;max-width:460px">💬 Your AI code workspace.<br>Attach files or a ZIP (📎), then just say what you want — <i>"merge these 2 files"</i>, <i>"fix this error"</i>, or ask a question.</div>'; return; }
     $('chatMsgs').innerHTML = chatMsgs.map(m => {
-      const who = m.role === 'user' ? 'You' : 'AI';
+      const mine = m.role === 'user';
       const body = esc2(m.display != null ? m.display : m.content).replace(/```([a-zA-Z0-9]*)\n([\s\S]*?)```/g,
         (_, l, c) => `<div style="position:relative;margin:6px 0"><button class="chat-copy" style="position:absolute;top:6px;right:6px;font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--muted);cursor:pointer">Copy</button><pre style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;padding-top:28px;overflow:auto;margin:0"><code>${c}</code></pre></div>`);
-      return `<div><b style="color:${m.role === 'user' ? 'var(--text)' : 'var(--primary)'}">${who}</b><div style="white-space:pre-wrap;word-break:break-word;margin-top:2px">${body}</div></div>`;
+      const bubble = mine
+        ? 'align-self:flex-end;background:color-mix(in srgb,var(--primary) 20%,var(--card));border:1px solid color-mix(in srgb,var(--primary) 35%,transparent)'
+        : 'align-self:flex-start;background:var(--card);border:1px solid var(--line)';
+      return `<div style="display:flex;flex-direction:column;gap:3px;max-width:88%;${mine ? 'align-self:flex-end;align-items:flex-end' : 'align-self:flex-start'}">
+        <span style="font-size:11px;color:var(--muted)">${mine ? 'You' : '🤖 AI'}</span>
+        <div style="${bubble};border-radius:14px;padding:10px 13px;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.5">${body}</div></div>`;
     }).join('');
     $('chatMsgs').querySelectorAll('.chat-copy').forEach(btn => btn.onclick = () => {
       const code = btn.parentElement.querySelector('code').textContent;

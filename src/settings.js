@@ -43,10 +43,28 @@ export const DEFAULTS = {
 
 let cache = null;
 
+// Environment variables survive restarts (unlike data/settings.json on an ephemeral disk),
+// so they act as a persistent base for the key settings — handy on the Render free plan.
+function envOverlay(s) {
+  const b = v => v === 'true' || v === '1';
+  const E = process.env;
+  if (E.ALLOW_AI !== undefined) s.allowAiMerge = b(E.ALLOW_AI);
+  if (E.AI_ADMIN_ONLY !== undefined) s.aiMergeAdminOnly = b(E.AI_ADMIN_ONLY);
+  if (E.AI_API_KEY) s.aiApiKey = E.AI_API_KEY;
+  if (E.AI_BASE_URL) s.aiBaseUrl = E.AI_BASE_URL;
+  if (E.AI_MODEL) s.aiModel = E.AI_MODEL;
+  if (E.AI_MAX_FILE_KB) s.aiMaxFileKb = Number(E.AI_MAX_FILE_KB) || s.aiMaxFileKb;
+  if (E.ALLOW_PUBLISH !== undefined) s.allowPublish = b(E.ALLOW_PUBLISH);
+  if (E.PUBLISH_ADMIN_ONLY !== undefined) s.publishAdminOnly = b(E.PUBLISH_ADMIN_ONLY);
+  if (E.FLARESOLVERR_URL) s.flaresolverrUrl = E.FLARESOLVERR_URL;
+  return s;
+}
+
 export function getSettings() {
   if (cache) return cache;
   try { cache = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(FILE, 'utf8')).settings }; }
   catch { cache = { ...DEFAULTS }; }
+  cache = envOverlay(cache);
   return cache;
 }
 

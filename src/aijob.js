@@ -23,7 +23,7 @@ export class AIJob {
   constructor(id, mode, opts, workRoot, callAi) {
     this.id = id;
     this.mode = mode; // 'edit' | 'merge'
-    this.opts = { command: '', maxFiles: 60, maxFileBytes: 80000, ...opts };
+    this.opts = { command: '', maxFiles: 60, maxFileBytes: 256 * 1024, ...opts };
     this.callAi = callAi; // async (systemPrompt, userPrompt) => string
     this.status = 'queued';
     this.progress = { total: 0, done: 0, changed: 0, failed: 0, skipped: 0, current: '' };

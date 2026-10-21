@@ -127,6 +127,7 @@ td.u{word-break:break-all}
         <div class="f"><label>API base URL</label><input type="text" name="aiBaseUrl" placeholder="https://api.deepseek.com"><small>DeepSeek (cheap), OpenRouter, or your self-hosted endpoint.</small></div>
         <div class="f"><label>Model</label><input type="text" name="aiModel" placeholder="deepseek-chat"></div>
         <div class="f"><label>Max files per project job</label><input type="number" name="aiMaxFiles" min="1" max="500"><small>Cost guard — more files = more AI calls.</small></div>
+        <div class="f"><label>Max size per code file (KB)</label><input type="number" name="aiMaxFileKb" min="16" max="2000"><small>Very large files can exceed the AI model's context window and fail.</small></div>
         <div class="f full"><label>API key</label><input type="password" name="aiApiKey" placeholder="leave blank to keep the saved key" autocomplete="new-password"><small id="aiKeyNote"></small></div>
       </div>
     </div>

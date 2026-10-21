@@ -30,6 +30,7 @@ export const DEFAULTS = {
   aiModel: 'deepseek-chat',   // model name at that endpoint
   aiApiKey: '',               // secret API key (kept server-side, never sent to the browser)
   aiMaxFiles: 60,             // max files the AI will process in one whole-project job (cost guard)
+  aiMaxFileKb: 256,           // max size of a single code file sent to the AI (true ceiling is the model's context window)
   keepZipMinutes: 30,
   maintenance: false,
   adHeader: '',               // raw HTML (e.g. AdSense) shown above the tool

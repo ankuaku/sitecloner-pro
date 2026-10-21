@@ -136,7 +136,8 @@
   $('chatAttach') && ($('chatAttach').onclick = () => $('chatFile').click());
   const CHAT_TEXT_EXT = /\.(html?|php|phtml|ejs|twig|vue|jsx|tsx|svelte|liquid|hbs|erb|aspx|cshtml|astro|css|js|ts|json|txt|py|sql|env|md|xml)$/i;
   function addChatFile(name, content) {
-    if (content.length > 80000) { aiErr(`${name} is larger than ~80 KB — attach a smaller file.`); return; }
+    const max = (cfg.aiMaxFileKb || 256) * 1024;
+    if (content.length > max) { aiErr(`${name} is larger than ${cfg.aiMaxFileKb || 256} KB.`); return; }
     if (chatFiles.some(f => f.name === name)) return;
     chatFiles.push({ name, content }); renderChips();
   }

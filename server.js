@@ -105,7 +105,7 @@ app.get('/api/config', (req, res) => {
     publish: s.allowPublish && !s.publishAdminOnly,  // visitor-facing publish button
     publishAny: s.allowPublish, maxZipMb: s.maxZipMb,
     aiMerge: s.allowAiMerge && !!s.aiApiKey && !s.aiMergeAdminOnly,
-    aiMergeAny: s.allowAiMerge && !!s.aiApiKey,
+    aiMergeAny: s.allowAiMerge && !!s.aiApiKey, aiMaxFileKb: s.aiMaxFileKb,
     adHeader: s.adHeader, adFooter: s.adFooter, footerText: s.footerText, termsText: s.termsText,
   });
 });
@@ -271,7 +271,7 @@ app.post('/api/ai-chat', async (req, res) => {
   msgs = msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-20);
   if (!msgs.length) return res.status(400).json({ error: 'Nothing to send.' });
   const total = msgs.reduce((n, m) => n + m.content.length, 0);
-  if (total > 120000) return res.status(400).json({ error: 'Conversation is too long — start a new chat or shorten the pasted code.' });
+  if (total > s.aiMaxFileKb * 1024 * 6) return res.status(400).json({ error: 'Conversation is too long — start a new chat or attach fewer/smaller files.' });
   const sys = 'You are a helpful senior web developer assistant. Help the user with their website/code: explain clearly, debug, and fix. When the user pastes an error or code, find the cause and give the corrected code. Put any code in a fenced code block. Keep answers concise and practical.';
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 120000);
@@ -315,7 +315,7 @@ app.post('/api/ai-project', (req, res) => {
     const mode = req.body?.mode === 'merge' ? 'merge' : 'edit';
     const command = String(req.body?.command || '');
     const f = req.files || {};
-    const opts = { command, maxFiles: s.aiMaxFiles, maxFileBytes: 80000 };
+    const opts = { command, maxFiles: s.aiMaxFiles, maxFileBytes: s.aiMaxFileKb * 1024 };
     if (mode === 'edit') {
       if (!f.project?.[0]) return res.status(400).json({ error: 'Upload the project ZIP.' });
       if (!command.trim()) return res.status(400).json({ error: 'Type the change you want applied.' });
@@ -369,7 +369,8 @@ app.post('/api/ai-merge', async (req, res) => {
   const template = String(req.body?.template || '');
   const instruction = String(req.body?.instruction || '').slice(0, 2000);
   if (!design.trim() || !template.trim()) return res.status(400).json({ error: 'Provide both the new design and the backend/template code.' });
-  if (design.length > 80000 || template.length > 80000) return res.status(400).json({ error: 'Each file is too large — merge one page at a time (max ~80 KB each).' });
+  const maxBytes = s.aiMaxFileKb * 1024;
+  if (design.length > maxBytes || template.length > maxBytes) return res.status(400).json({ error: `Each file is too large (max ${s.aiMaxFileKb} KB each).` });
 
   const sys = 'You are a senior web developer. You merge a new front-end design into an existing server-side template, keeping ALL of the template\'s dynamic code intact — its variables, loops, conditionals, includes, CSRF tokens, form actions and server tags (e.g. {{ }}, {% %}, <?php ?>, <%= %>, @if, ${ }). Apply the new design\'s HTML structure and CSS/classes, but wire every dynamic value from the original into the right place in the new markup. Do not invent new backend variables. Output ONLY the final merged file, inside a single code block, with no explanation.';
   const user = `EXISTING BACKEND TEMPLATE (keep all dynamic code working):\n\`\`\`\n${template}\n\`\`\`\n\nNEW FRONT-END DESIGN (use this look/structure):\n\`\`\`\n${design}\n\`\`\`\n\n${instruction ? 'EXTRA INSTRUCTION: ' + instruction + '\n\n' : ''}Return the merged template file only.`;
@@ -401,7 +402,7 @@ app.post('/api/ai-edit', async (req, res) => {
   const command = String(req.body?.command || '').slice(0, 2000);
   if (!code.trim()) return res.status(400).json({ error: 'Paste or pick a file to edit.' });
   if (!command.trim()) return res.status(400).json({ error: 'Type what you want to change.' });
-  if (code.length > 80000) return res.status(400).json({ error: 'File is too large — edit one page at a time (max ~80 KB).' });
+  if (code.length > s.aiMaxFileKb * 1024) return res.status(400).json({ error: `File is too large (max ${s.aiMaxFileKb} KB).` });
 
   const sys = 'You are a senior web developer. Apply ONLY the change the user asks for to the given file. Keep everything else exactly as it is, including all dynamic/server code (variables, loops, conditionals, includes, form actions, server tags like {{ }}, {% %}, <?php ?>, <%= %>, ${ }). Do not refactor or remove anything unrelated to the request. Output ONLY the full updated file inside a single code block, with no explanation.';
   const user = `FILE:\n\`\`\`\n${code}\n\`\`\`\n\nCHANGE REQUESTED: ${command}\n\nReturn the full updated file only.`;

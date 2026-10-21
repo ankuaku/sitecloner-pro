@@ -108,7 +108,7 @@
   $('tabEdit') && ($('tabEdit').onclick = () => setAiMode('edit'));
   $('tabMerge') && ($('tabMerge').onclick = () => setAiMode('merge'));
   $('tabChat') && ($('tabChat').onclick = () => setAiMode('chat'));
-  if ($('aiBox')) setAiMode('edit');
+  if ($('aiBox')) setAiMode('chat');
 
   // AI chat — developer assistant: attach code, ask, fix errors, copy fixes fast
   let chatMsgs = [], chatFiles = [];
@@ -134,12 +134,36 @@
   }
   $('chatNew') && ($('chatNew').onclick = () => { chatMsgs = []; chatFiles = []; renderChips(); renderChat(); });
   $('chatAttach') && ($('chatAttach').onclick = () => $('chatFile').click());
+  const CHAT_TEXT_EXT = /\.(html?|php|phtml|ejs|twig|vue|jsx|tsx|svelte|liquid|hbs|erb|aspx|cshtml|astro|css|js|ts|json|txt|py|sql|env|md|xml)$/i;
+  function addChatFile(name, content) {
+    if (content.length > 80000) { aiErr(`${name} is larger than ~80 KB — attach a smaller file.`); return; }
+    if (chatFiles.some(f => f.name === name)) return;
+    chatFiles.push({ name, content }); renderChips();
+  }
+  async function openZipPicker(file) {
+    if (typeof JSZip === 'undefined') { aiErr('ZIP support not loaded.'); return; }
+    let zip; try { zip = await JSZip.loadAsync(file); } catch { aiErr('Could not open that ZIP.'); return; }
+    const files = [];
+    zip.forEach((p, e) => { if (!e.dir && CHAT_TEXT_EXT.test(p) && !/(^|\/)(__MACOSX|node_modules|\.git|vendor)\//.test(p)) files.push(p); });
+    files.sort((a, b) => a.localeCompare(b));
+    if (!files.length) { aiErr('No text/code files found in that ZIP.'); return; }
+    $('chatZipName').textContent = file.name + ` (${files.length} files)`;
+    $('chatZipList').innerHTML = files.map((p, i) =>
+      `<label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-z="${i}" style="accent-color:var(--primary)"><span style="word-break:break-all">${p.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span></label>`).join('');
+    $('chatZipPick').style.display = '';
+    const addPaths = async paths => {
+      for (const p of paths) { try { addChatFile(p.split('/').pop(), await zip.file(p).async('string')); } catch {} }
+    };
+    $('chatZipList').querySelectorAll('input[data-z]').forEach(cb => cb.onchange = async () => { if (cb.checked) await addPaths([files[+cb.dataset.z]]); });
+    $('chatZipAll').onclick = async () => { await addPaths(files.slice(0, 20)); $('chatZipPick').style.display = 'none'; if (files.length > 20) aiErr('Added the first 20 files (keep the conversation small).'); };
+    $('chatZipClose').onclick = () => { $('chatZipPick').style.display = 'none'; };
+  }
   $('chatFile') && ($('chatFile').onchange = async () => {
     for (const f of $('chatFile').files) {
-      if (f.size > 80000) { aiErr(`${f.name} is larger than ~80 KB — attach a smaller file.`); continue; }
-      try { chatFiles.push({ name: f.name, content: await f.text() }); } catch {}
+      if (/\.zip$/i.test(f.name)) { await openZipPicker(f); continue; }
+      try { addChatFile(f.name, await f.text()); } catch {}
     }
-    $('chatFile').value = ''; renderChips();
+    $('chatFile').value = '';
   });
   async function sendChat() {
     const text = $('chatInput').value.trim();

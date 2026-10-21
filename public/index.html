@@ -94,14 +94,19 @@
     <h3 style="margin:0 0 4px;font-size:16px">AI for your whole project</h3>
     <p style="color:var(--muted);font-size:14px;margin:0 0 14px">Upload your project ZIP — AI processes every page and gives the full project back as a ZIP. Dynamic/server code stays intact.</p>
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn ghost" type="button" id="tabEdit" style="min-height:38px;padding:0 16px">Edit by command</button>
-      <button class="btn ghost" type="button" id="tabMerge" style="min-height:38px;padding:0 16px">Merge design into backend</button>
-      <button class="btn ghost" type="button" id="tabChat" style="min-height:38px;padding:0 16px">Chat / fix errors</button>
+      <button class="btn ghost" type="button" id="tabChat" style="min-height:38px;padding:0 16px">Chat / merge / fix</button>
+      <button class="btn ghost" type="button" id="tabEdit" style="min-height:38px;padding:0 16px">Whole project: edit</button>
+      <button class="btn ghost" type="button" id="tabMerge" style="min-height:38px;padding:0 16px">Whole project: merge ZIPs</button>
     </div>
 
     <div id="chatInputs" style="display:none">
       <div id="chatMsgs" style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:220px;max-height:460px;overflow:auto;font-size:14px;display:flex;flex-direction:column;gap:12px">
-        <div style="color:var(--muted)">Talk to the AI about your code — paste or attach a file, describe an error, ask a question, or request a change. Fixes come back with a one-click Copy.</div>
+        <div style="color:var(--muted)">Your AI code workspace. Attach files or a ZIP (📎), then just say what you want — <i>"merge these 2 files"</i>, <i>"fix this error"</i>, <i>"make the header sticky"</i>, or ask a question. Code comes back with one-click Copy.</div>
+      </div>
+      <div id="chatZipPick" style="display:none;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:13px" id="chatZipName"></b>
+          <span style="display:flex;gap:6px"><button class="btn ghost" type="button" id="chatZipAll" style="min-height:28px;padding:0 10px;font-size:12px">Add all</button><button class="btn ghost" type="button" id="chatZipClose" style="min-height:28px;padding:0 10px;font-size:12px">✕</button></span></div>
+        <div id="chatZipList" style="max-height:160px;overflow:auto;font-size:13px;display:flex;flex-direction:column;gap:3px"></div>
       </div>
       <div id="chatChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
       <div class="urlrow" style="margin-top:10px;align-items:flex-end">
@@ -109,7 +114,7 @@
         <button class="btn ghost" type="button" id="chatAttach" title="Attach a code file" style="padding:0 14px">📎</button>
         <button class="btn" type="button" id="chatSend">Send</button>
       </div>
-      <input id="chatFile" type="file" accept=".html,.htm,.php,.css,.js,.ts,.jsx,.tsx,.vue,.json,.txt,.py,.sql,.env,.md,.twig,.ejs,.blade.php" multiple style="display:none">
+      <input id="chatFile" type="file" accept=".zip,.html,.htm,.php,.css,.js,.ts,.jsx,.tsx,.vue,.json,.txt,.py,.sql,.env,.md,.twig,.ejs" multiple style="display:none">
       <div style="margin-top:8px"><button class="btn ghost" type="button" id="chatNew" style="min-height:32px;padding:0 12px;font-size:13px">New chat</button></div>
     </div>
 
